@@ -18,27 +18,35 @@ idbGet('logo').then((b) => { if (b) { logoURL = URL.createObjectURL(b); render()
 
 // ======================= Sincronización con Drive =======================
 let temporizador = null; let subiendo = false; let otraVez = false;
+const marcarPendiente = (v) => { try { if (v) localStorage.setItem('ll-pendiente', '1'); else localStorage.removeItem('ll-pendiente'); } catch {} };
+const hayPendiente = () => { try { return localStorage.getItem('ll-pendiente') === '1'; } catch { return false; } };
 S.siempreAlGuardar(() => {
-  if (!G.conectado()) return;
+  if (!G.conectado()) { marcarPendiente(true); return; }
   clearTimeout(temporizador);
   temporizador = setTimeout(subir, 1200);
 });
 async function subir() {
   if (subiendo) { otraVez = true; return; }
   subiendo = true;
-  try { await G.escribirDatos(S.datos()); } catch (e) { console.warn('No se pudo sincronizar', e); }
+  try { await G.escribirDatos(S.datos()); marcarPendiente(false); } catch (e) { marcarPendiente(true); console.warn('No se pudo sincronizar', e); }
   subiendo = false;
   if (otraVez) { otraVez = false; subir(); }
 }
 async function conectarYSincronizar() {
   await G.conectar();
   const remoto = await G.leerDatos();
-  const remotoMasNuevo = remoto && (remoto.updatedAt || 0) > (S.datos().updatedAt || 0);
-  if (remotoMasNuevo) { S.reemplazar(remoto); toast('Datos sincronizados desde tu Drive.'); }
+  // Nunca se sustituye una copia por otra: se juntan las dos, para no perder nada
+  if (remoto) {
+    const antes = S.hechas().length;
+    S.reemplazar(S.fusionar(S.datos(), remoto));
+    const recuperadas = S.hechas().length - antes;
+    if (recuperadas > 0) toast(`Recuperadas ${recuperadas} actividades desde tu Drive.`, { ms: 9000 });
+  }
   // Una sola vez: rehace el archivo de Drive para que no quede ninguna versión antigua con correos
   let limpio = false; try { limpio = localStorage.getItem('ll-limpieza-correos') === '1'; } catch {}
   if (!limpio) { await G.recrearDatos(S.datos()); try { localStorage.setItem('ll-limpieza-correos', '1'); } catch {} }
-  else if (!remotoMasNuevo) await G.escribirDatos(S.datos());
+  else await G.escribirDatos(S.datos());
+  marcarPendiente(false);
 }
 async function google() {
   if (!G.configurado()) throw new Error('La conexión con Google aún no está configurada.');
@@ -342,7 +350,7 @@ function vInicio() {
   const tmHechas = c.tutoria_metodologica; const semHechas = c.seminario;
   const plan = S.planSesiones();
   const banda = G.configurado() && !G.conectado()
-    ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>Para crear tus documentos en Drive y tener tus registros en todos tus dispositivos. La app no tiene acceso a tu correo.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
+    ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>${hayPendiente() ? '<b>Tienes cambios que aún no están guardados en tu Drive.</b> ' : ''}Así tus registros quedan guardados en tu Drive y no se pierden si cambias de móvil o borras la app. La app no tiene acceso a tu correo.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
     : !G.configurado() ? `<div class="aviso-caja">${icon('candado', 18)}<span>Modo prueba: tus datos se guardan solo en este dispositivo.</span></div>` : '';
   const empezar = !s.ajustes.nombre || !s.ajustes.plantillaHorasNombre
     ? `<a href="#/ajustes" class="item">${'<span class="icono-caja bg-verde">' + icon('ajustes', 20) + '</span>'}<span class="item-texto"><span class="item-titulo">Termina de configurar la app</span><span class="item-sub">${!s.ajustes.nombre ? 'Tu nombre' : ''}${!s.ajustes.nombre && !s.ajustes.plantillaHorasNombre ? ' y ' : ''}${!s.ajustes.plantillaHorasNombre ? 'la plantilla de horas de Luria' : ''}</span></span></a>` : '';
@@ -861,7 +869,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.6.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.6.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {

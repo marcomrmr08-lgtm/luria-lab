@@ -82,6 +82,40 @@ export function reemplazar(nuevo, { sincronizar = false } = {}) {
 
 export function siempreAlGuardar(fn) { alGuardar = fn; }
 
+// Junta dos copias (este dispositivo y Drive) sin perder nada de ninguna
+const intacta = (a) => a.precargada && a.estado === 'programada' && !a.notasDocId
+  && !Object.values(a.ficha || {}).some(Boolean) && !a.tarea?.docId && !a.tarea?.texto;
+const ajustesVacios = (aj) => !aj?.nombre && !aj?.plantillaHorasNombre && !aj?.plantillaDiarioId;
+export function fusionar(local, remoto) {
+  const L = completar(JSON.parse(JSON.stringify(local)));
+  const R = completar(JSON.parse(JSON.stringify(remoto)));
+  const localMasNuevo = (L.updatedAt || 0) >= (R.updatedAt || 0);
+  const porId = new Map(R.actividades.map((a) => [a.id, a]));
+  for (const a of L.actividades) {
+    const r = porId.get(a.id);
+    if (!r) porId.set(a.id, a);
+    else if (intacta(a) && !intacta(r)) { /* se queda la de Drive, que tiene más */ }
+    else if (intacta(r) && !intacta(a)) porId.set(a.id, a);
+    else if (localMasNuevo) porId.set(a.id, a);
+  }
+  const ter = new Map(R.terapeutas.map((t) => [t.id, t]));
+  for (const t of L.terapeutas) ter.set(t.id, t);
+  const base = ajustesVacios(L.ajustes) ? R.ajustes : ajustesVacios(R.ajustes) ? L.ajustes : (localMasNuevo ? L.ajustes : R.ajustes);
+  const otro = base === L.ajustes ? R.ajustes : L.ajustes;
+  const ajustes = { ...otro, ...Object.fromEntries(Object.entries(base).filter(([, v]) => v !== '' && v !== null && v !== undefined)) };
+  ajustes.carpetas = { ...(otro.carpetas || {}), ...(base.carpetas || {}) };
+  const informes = { ...R.informes };
+  for (const [m, v] of Object.entries(L.informes)) informes[m] = { ...(informes[m] || {}), ...v };
+  return {
+    ...R, ...L,
+    updatedAt: Date.now(),
+    ajustes, informes,
+    actividades: [...porId.values()],
+    terapeutas: [...ter.values()],
+    horasPrevias: L.horasPrevias.length ? L.horasPrevias : R.horasPrevias,
+  };
+}
+
 // ---------- Consultas ----------
 export const actividad = (id) => estado.actividades.find((a) => a.id === id);
 export const terapeuta = (id) => estado.terapeutas.find((t) => t.id === id);
