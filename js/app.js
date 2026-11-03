@@ -733,7 +733,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1 (fase 1)</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.3.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -882,5 +882,10 @@ window.addEventListener('hashchange', () => { cerrarModal(); render(); window.sc
 render();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker', e));
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    reg.update();
+    // Cuando hay una versión nueva, se recarga sola una vez
+    let recargado = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (!recargado) { recargado = true; location.reload(); } });
+  }).catch((e) => console.warn('Service worker', e));
 }
