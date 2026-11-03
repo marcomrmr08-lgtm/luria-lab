@@ -5,7 +5,7 @@ import * as G from './google.js';
 import * as D from './documentos.js';
 import { generarHoja, leerHoja, asignarCasillas, mesDeTitulo, COLUMNAS_HOJA } from './hojaHoras.js';
 import { Zip } from './zip.js';
-import { TIPOS, TIPOS_HOJA, TEMAS, MESES, REVISIONES_PDP } from './calendario.js';
+import { TIPOS, TIPOS_HOJA, TEMAS, MESES, REVISIONES_PDP, PROCESOS, TIPOS_FICHA } from './calendario.js';
 import { esc, hoyISO, sumarDias, fmtFecha, fmtCorta, fmtNum, nombreMes, toast, abrirModal, cerrarModal, conCarga, idbGet, idbSet, descargar, icon } from './ui.js';
 
 const app = document.getElementById('app');
@@ -1059,7 +1059,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.1.2</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.0.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1149,6 +1149,188 @@ function vAjustes() {
   };
 }
 
+// ======================= Fase 3: Hexaflex =======================
+const HX = () => S.datos().hexaflex;
+const proceso = (k) => PROCESOS.find((p) => p.k === k);
+const fichasDe = (k) => HX().fichas.filter((f) => (f.procesos || []).includes(k));
+const nivelExp = (f) => (f.exp?.terapia ? 'Usada en terapia' : f.exp?.rp ? 'Probada en role play' : f.exp?.mi ? 'Probada en mí' : 'Sin probar');
+// Guarda al momento cada campo que cambia (data-campo="ruta.del.dato")
+function autoguardar(raiz, objeto) {
+  raiz.querySelectorAll('[data-campo]').forEach((el) => el.addEventListener('change', () => {
+    S.actualizar(() => { objeto()[el.dataset.campo] = el.type === 'checkbox' ? el.checked : el.value.trim(); });
+    const aviso = raiz.querySelector('.guardado'); if (aviso) { aviso.textContent = 'Guardado'; setTimeout(() => { aviso.textContent = ''; }, 1500); }
+  }));
+}
+const areaCampo = (campo, etiqueta, valor, ph, filas = 4) => `<section class="tarjeta"><label for="c-${campo}" class="tipo c-morado" style="font-size:13px">${etiqueta}</label><textarea id="c-${campo}" data-campo="${campo}" rows="${filas}" placeholder="${esc(ph)}" style="border:0;padding:0">${esc(valor)}</textarea></section>`;
+const tarjetaFicha = (f) => `<a href="#/hexaflex/ficha/${encodeURIComponent(f.id)}" class="item" style="flex-direction:column;align-items:stretch;gap:8px">
+  <span class="fila-entre"><span class="tipo c-morado">${esc(f.tipo || 'Ficha')}</span><span class="mini ${f.exp?.terapia || f.exp?.rp || f.exp?.mi ? 'c-verde' : 'suave'}" style="font-weight:700">${nivelExp(f)}</span></span>
+  <span style="font-size:17px;font-weight:700">${esc(f.nombre || 'Sin nombre')}</span>
+  <span class="insignias">${(f.procesos || []).map((k) => `<span class="insignia ${k === f.principal ? 'ok' : ''}">${esc(proceso(k)?.nombre || k)}</span>`).join('')}${f.ejemplo ? '<span class="insignia aviso">Ejemplo</span>' : ''}</span></a>`;
+
+let filtroHx = '';
+function vHexaflex() {
+  const fichas = [...HX().fichas].filter((f) => !filtroHx || [f.nombre, f.paraQue, f.cuando, f.tipo].join(' ').toLowerCase().includes(filtroHx.toLowerCase())).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  return {
+    html: `<div class="pantalla"><div class="item-texto"><h1 class="titulo">Hexaflex</h1><span class="suave pequeno">Teoría y banco de ejercicios ACT</span></div>
+    <a href="#/hexaflex/modelo" class="item" style="background:var(--verde);border-color:var(--verde);color:#fff"><span class="icono-caja" style="background:rgba(255,255,255,0.14);color:#fff">${icon('hexa')}</span><span class="item-texto"><span style="font-size:16px;font-weight:700">El modelo de flexibilidad psicológica</span><span class="item-sub" style="color:#C9CEF0">Tu resumen de la teoría · ${HX().modelo?.que ? 'escrito' : 'por escribir'}</span></span>${icon('sig', 18)}</a>
+    <div class="rejilla">${PROCESOS.map((p) => `<a href="#/hexaflex/p/${p.k}" class="celda" style="background:var(--superficie);border:1px solid var(--linea);color:var(--tinta);min-height:64px"><span style="font-size:14px;font-weight:700">${esc(p.nombre)}</span><span class="mini suave">${fichasDe(p.k).length} ficha${fichasDe(p.k).length === 1 ? '' : 's'}${HX().procesos[p.k]?.que ? ' · teoría ✓' : ''}</span></a>`).join('')}</div>
+    <div class="fila-entre"><h2 class="seccion-titulo">Banco de fichas</h2><a href="#/hexaflex/ficha/nueva" class="btn texto">${icon('mas', 18)} Añadir</a></div>
+    <div class="campo"><label for="hx-buscar" class="oculto">Buscar fichas</label><input type="search" id="hx-buscar" placeholder="Buscar: «rumia», «evitación»…" value="${esc(filtroHx)}"></div>
+    <div class="seccion">${fichas.map(tarjetaFicha).join('') || '<p class="vacio">No hay fichas que coincidan.</p>'}</div>
+    </div>${nav('hexaflex')}`,
+    mount(r) { const b = r.querySelector('#hx-buscar'); b.addEventListener('input', () => { filtroHx = b.value; const pos = b.selectionStart; render(); const nb = app.querySelector('#hx-buscar'); nb.focus(); nb.setSelectionRange(pos, pos); }); },
+  };
+}
+
+function vHxModelo() {
+  const m = HX().modelo;
+  return {
+    html: `<div class="pantalla sin-nav">${volver('#/hexaflex', 'El modelo')}
+    <p class="suave pequeno" style="line-height:1.45">Resume con tus palabras el modelo de flexibilidad psicológica según el libro de Hayes. Se guarda solo mientras escribes. <span class="guardado c-verde" style="font-weight:700"></span></p>
+    ${areaCampo('que', '¿Qué es la flexibilidad psicológica?', m.que, 'Definición y para qué sirve en terapia', 5)}
+    ${areaCampo('relacion', '¿Cómo se relacionan los seis procesos?', m.relacion, 'Los tres pares: abierto, consciente, comprometido…', 6)}
+    ${areaCampo('inflexibilidad', 'El modelo de inflexibilidad', m.inflexibilidad, 'Cómo se ve el sufrimiento desde ACT', 5)}
+    ${areaCampo('fuente', 'Fuente', m.fuente, 'Libro, capítulos y páginas', 2)}
+    </div>`,
+    mount(r) { autoguardar(r, () => HX().modelo); },
+  };
+}
+
+function vHxProceso(k) {
+  const p = proceso(k); if (!p) return vNoEncontrado();
+  const d = HX().procesos[k] || {};
+  const fichas = fichasDe(k);
+  return {
+    html: `<div class="pantalla sin-nav">${volver('#/hexaflex', 'Hexaflex')}
+    <div class="item-texto"><h1 class="titulo">${esc(p.nombre)}</h1><span class="suave pequeno">Polo de inflexibilidad: ${esc(p.opuesto)}</span></div>
+    <p class="mini suave">Se guarda solo mientras escribes. <span class="guardado c-verde" style="font-weight:700"></span></p>
+    ${areaCampo('que', 'Qué es', d.que, 'El proceso explicado con tus palabras', 4)}
+    ${areaCampo('falta', 'Cómo se ve en sesión cuando falta', d.falta, `Señales de ${p.opuesto.toLowerCase()}`, 4)}
+    ${areaCampo('busca', 'Qué busca el terapeuta al trabajarlo', d.busca, 'Hacia dónde mueve la intervención', 3)}
+    ${areaCampo('fuente', 'Fuente', d.fuente, 'Capítulo y páginas', 2)}
+    <div class="fila-entre"><h2 class="seccion-titulo">Fichas de ${esc(p.nombre.toLowerCase())}</h2><a href="#/hexaflex/ficha/nueva?p=${k}" class="btn texto">${icon('mas', 18)} Añadir</a></div>
+    <div class="seccion">${fichas.map(tarjetaFicha).join('') || '<p class="vacio">Aún no hay fichas de este proceso.</p>'}</div>
+    </div>`,
+    mount(r) { autoguardar(r, () => { const hx = HX(); hx.procesos[k] = hx.procesos[k] || {}; return hx.procesos[k]; }); },
+  };
+}
+
+const borradorFicha = {};
+function vHxFicha(id, params) {
+  const nueva = id === 'nueva';
+  const f = nueva ? (borradorFicha.f = borradorFicha.f || { id: S.nuevoId(), nombre: '', tipo: 'Metáfora', procesos: params.get('p') ? [params.get('p')] : [], principal: params.get('p') || '', exp: {}, notasExp: [] }) : HX().fichas.find((x) => x.id === id);
+  if (!f) return vNoEncontrado();
+  const campo = (n, l, ph, filas = 3) => `<div class="campo"><label for="f-${n}">${l}</label><textarea id="f-${n}" name="${n}" rows="${filas}" placeholder="${esc(ph)}">${esc(f[n])}</textarea></div>`;
+  return {
+    html: `<div class="pantalla sin-nav">${volver('#/hexaflex', nueva ? 'Nueva ficha' : 'Ficha')}
+    <form id="f-hx" class="seccion">
+      <div class="campo"><label for="f-nombre">Nombre</label><input type="text" id="f-nombre" name="nombre" required value="${esc(f.nombre)}" placeholder="p. ej. Pasajeros en el autobús"></div>
+      <div class="campo"><label for="f-tipo">Tipo</label><select id="f-tipo" name="tipo">${TIPOS_FICHA.map((t) => `<option ${t === f.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="campo"><span class="etiqueta">Procesos que trabaja</span><div class="chips">${PROCESOS.map((p) => `<input type="checkbox" id="pr-${p.k}" name="procesos" value="${p.k}" ${(f.procesos || []).includes(p.k) ? 'checked' : ''}><label for="pr-${p.k}">${esc(p.nombre)}</label>`).join('')}</div></div>
+      <div class="campo"><label for="f-principal">Proceso principal</label><select id="f-principal" name="principal"><option value="">—</option>${PROCESOS.map((p) => `<option value="${p.k}" ${p.k === f.principal ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>
+      ${campo('paraQue', 'Para qué sirve', 'Qué quieres conseguir con ella')}
+      ${campo('cuando', 'Cuándo usarla', 'El paciente… (sin datos de pacientes reales)')}
+      ${campo('guion', 'Guion breve', 'Tu versión, con tus palabras', 6)}
+      ${campo('variaciones', 'Variaciones', 'Adaptación para infancia, versión con objetos…', 2)}
+      <div class="campo"><label for="f-fuente">Fuente</label><input type="text" id="f-fuente" name="fuente" value="${esc(f.fuente)}" placeholder="Libro, capítulo, página"></div>
+      <button class="btn primario grande">Guardar ficha</button>
+    </form>
+    ${!nueva ? `<section class="tarjeta"><span class="tipo c-morado" style="font-size:13px">Mi experiencia</span>
+      <div class="pasos">${[['mi', 'En mí'], ['rp', 'Role play'], ['terapia', 'En terapia']].map(([k, t]) => `<span class="paso ${f.exp?.[k] ? 'hecho' : ''}"><i>${f.exp?.[k] ? icon('check', 14) : ''}</i>${t}</span>`).join('')}</div>
+      ${(f.notasExp || []).map((n) => `<div class="feedback"><span class="tipo c-azul">${esc({ mi: 'En mí', rp: 'Role play', terapia: 'En terapia' }[n.donde] || '')} · ${esc(fmtCorta(n.fecha))}</span>${esc(n.texto)}</div>`).join('')}
+      <button class="btn primario" data-act="hx-practica" data-id="${esc(f.id)}">${icon('check', 16)}Registrar que la he practicado</button></section>
+      <button class="btn peligro" id="b-borrar-ficha">${icon('papelera', 18)}Eliminar ficha</button>` : ''}
+    </div>`,
+    mount(r) {
+      const form = r.querySelector('#f-hx');
+      form.addEventListener('submit', (e) => {
+        e.preventDefault(); const v = leerForm(form);
+        const procesos = [].concat(v.procesos || []);
+        Object.assign(f, { nombre: v.nombre.trim(), tipo: v.tipo, procesos, principal: v.principal || procesos[0] || '', paraQue: v.paraQue.trim(), cuando: v.cuando.trim(), guion: v.guion.trim(), variaciones: v.variaciones.trim(), fuente: v.fuente.trim(), ejemplo: false });
+        S.actualizar((s) => { if (nueva) { s.hexaflex.fichas.push(f); delete borradorFicha.f; } });
+        toast('Ficha guardada.'); irA(nueva ? `#/hexaflex/ficha/${encodeURIComponent(f.id)}` : '#/hexaflex');
+      });
+      r.querySelector('#b-borrar-ficha')?.addEventListener('click', () => confirmar('¿Eliminar esta ficha?', 'Se borra del banco.', 'Eliminar', () => {
+        S.actualizar((s) => { s.hexaflex.fichas = s.hexaflex.fichas.filter((x) => x.id !== f.id); s.borrados = [...new Set([...(s.borrados || []), f.id])]; }); irA('#/hexaflex');
+      }));
+    },
+  };
+}
+
+function modalPracticaFicha(id) {
+  const f = HX().fichas.find((x) => x.id === id);
+  abrirModal(`<h2>He practicado «${esc(f.nombre)}»</h2>
+  <form id="f-pf" class="seccion">
+    <div class="campo"><span class="etiqueta">¿Dónde?</span>${seg('donde', [['mi', 'En mí'], ['rp', 'Role play'], ['terapia', 'En terapia']], 'rp')}</div>
+    <div class="campo"><label for="pf-fecha">Fecha</label><input type="date" id="pf-fecha" name="fecha" value="${hoyISO()}"></div>
+    <div class="campo"><label for="pf-txt">¿Cómo ha ido?</label><textarea id="pf-txt" name="texto" rows="4" placeholder="Qué funcionó, qué cambiarías la próxima vez"></textarea>
+      <span class="ayuda">Si fue en terapia, sin datos que identifiquen al paciente.</span></div>
+    <label class="pequeno" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="diario" value="1" checked> Añadirla también al Diario como práctica de mi PDP</label>
+    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
+  </form>`, (d) => {
+    d.querySelector('#f-pf').addEventListener('submit', (e) => {
+      e.preventDefault(); const v = leerForm(e.target);
+      S.actualizar((s) => {
+        f.exp = { ...(f.exp || {}), [v.donde]: true };
+        (f.notasExp = f.notasExp || []).push({ fecha: v.fecha, donde: v.donde, texto: v.texto.trim() });
+        if (v.diario) s.actividades.push({ id: S.nuevoId(), tipo: 'practica_pdp', fecha: v.fecha, estado: 'hecha', titulo: `Hexaflex · ${f.nombre}`, descripcion: `${{ mi: 'En mí', rp: 'Role play', terapia: 'En terapia' }[v.donde]}. ${v.texto.trim()}`.trim(), fichaId: f.id });
+      });
+      cerrarModal(); toast('Práctica registrada.'); render();
+    });
+  });
+}
+
+// ======================= Fase 3: Mi PDP =======================
+const PDP = () => S.datos().pdp;
+function vPDP() {
+  const p = PDP(); const s = S.datos();
+  const practicas = S.hechas().filter((a) => a.tipo === 'practica_pdp').sort((x, y) => porFechaHora(y, x));
+  const objetivo = (o, i) => {
+    const hechas = (o.conductas || []).filter((c) => c.hecha).length; const total = (o.conductas || []).length;
+    return `<section class="tarjeta" data-obj="${esc(o.id)}">
+      <div class="fila-entre"><span class="tipo c-verde" style="color:var(--verde)">Objetivo ${i + 1}</span><span class="pequeno suave" style="font-weight:600">${hechas} de ${total} conductas</span></div>
+      <label for="o-${o.id}" class="oculto">Objetivo ${i + 1}</label>
+      <textarea id="o-${o.id}" data-o="${esc(o.id)}" data-k="titulo" rows="2" placeholder="¿Qué objetivo quiero conseguir?" style="font-size:17px;font-weight:700;border:0;padding:0">${esc(o.titulo)}</textarea>
+      ${total ? `<div class="barra" aria-hidden="true"><div style="width:${(hechas / total) * 100}%"></div></div>` : ''}
+      <span class="etiqueta-grupo" style="margin:0">¿De qué conductas me voy a servir?</span>
+      ${(o.conductas || []).map((c) => `<div style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" data-conducta="${esc(c.id)}" data-o="${esc(o.id)}" ${c.hecha ? 'checked' : ''} aria-label="Hecha" style="width:22px;height:22px;margin-top:10px;accent-color:var(--verde)"><textarea data-conducta-txt="${esc(c.id)}" data-o="${esc(o.id)}" rows="1" style="flex:1;min-height:40px;padding:8px 10px">${esc(c.texto)}</textarea><button class="btn texto" data-act="pdp-quitar-conducta" data-o="${esc(o.id)}" data-c="${esc(c.id)}" aria-label="Quitar conducta">${icon('papelera', 16)}</button></div>`).join('')}
+      <button class="btn texto pequeno" data-act="pdp-conducta" data-o="${esc(o.id)}" style="align-self:flex-start">${icon('mas', 16)} Añadir conducta</button>
+      <span class="etiqueta-grupo" style="margin:0">¿Cómo voy a registrar mis avances?</span>
+      <textarea data-o="${esc(o.id)}" data-k="registro" rows="2" placeholder="p. ej. fichas Hexaflex practicadas, role plays registrados…">${esc(o.registro)}</textarea>
+      <button class="btn texto pequeno" data-act="pdp-quitar-obj" data-o="${esc(o.id)}" style="align-self:flex-end;color:var(--error)">Quitar objetivo</button>
+    </section>`;
+  };
+  const revisiones = REVISIONES_PDP.map((n) => {
+    const tm = S.actividad(`tm-${n}`); const r = p.revisiones[n] || {};
+    return `<section class="tarjeta"><div class="fila-entre"><span class="item-texto"><span style="font-size:15px;font-weight:700">Revisión ${REVISIONES_PDP.indexOf(n) + 1} · T. metodológica ${n}</span><span class="item-sub">${esc(fmtFecha(tm?.fecha))}</span></span>${tm?.estado === 'hecha' ? '<span class="insignia ok">Hecha</span>' : ''}</div>
+      <textarea data-rev="${n}" rows="3" placeholder="Qué quiero comentar con mi tutora · qué me dijo">${esc(r.notas)}</textarea></section>`;
+  }).join('');
+  return {
+    html: `<div class="pantalla"><div class="item-texto"><h1 class="titulo">Mi PDP</h1><span class="suave pequeno">Plan de desarrollo profesional · se guarda solo <span class="guardado c-verde" style="font-weight:700"></span></span></div>
+    <h2 class="etiqueta-grupo">Mi punto de partida</h2>
+    <div class="dos-col">
+      <section class="tarjeta" style="background:var(--exito-cl);border-color:transparent"><label for="p-fuertes" class="tipo c-verde">Puntos fuertes</label><textarea id="p-fuertes" data-pdp="fuertes" rows="6" style="background:transparent;border:0;padding:0">${esc(p.fuertes)}</textarea></section>
+      <section class="tarjeta" style="background:var(--ambar-cl);border-color:transparent"><label for="p-mejora" class="tipo c-ambar">Áreas de mejora</label><textarea id="p-mejora" data-pdp="mejora" rows="6" style="background:transparent;border:0;padding:0">${esc(p.mejora)}</textarea></section>
+    </div>
+    <h2 class="etiqueta-grupo">Mis objetivos <span style="text-transform:none;font-weight:600">(2 o 3 como máximo)</span></h2>
+    ${p.objetivos.map(objetivo).join('')}
+    ${p.objetivos.length < 3 ? `<button class="btn linea" data-act="pdp-objetivo">${icon('mas', 18)}Añadir objetivo</button>` : ''}
+    <h2 class="etiqueta-grupo">Revisiones con tu tutora</h2>${revisiones}
+    <div class="fila-entre"><h2 class="etiqueta-grupo">Mis prácticas del PDP</h2><a href="#/practica/nuevo" class="btn texto pequeno">${icon('mas', 16)} Registrar</a></div>
+    ${practicas.length ? practicas.slice(0, 5).map((a) => `<a href="${rutaForm(a)}" class="item"><span class="item-texto"><span class="item-titulo">${esc(a.titulo)}</span><span class="item-sub">${esc(fmtCorta(a.fecha))}${a.descripcion ? ' · ' + esc(a.descripcion.slice(0, 80)) : ''}</span></span></a>`).join('') + (practicas.length > 5 ? `<a href="#/diario" class="pequeno" style="font-weight:700">Ver las ${practicas.length} en el Diario</a>` : '') : '<p class="pequeno suave">Role plays, lecturas o ejercicios en ti. También se añaden al practicar una ficha del Hexaflex.</p>'}
+    </div>${nav('pdp')}`,
+    mount(r) {
+      const ok = () => { const a = r.querySelector('.guardado'); if (a) { a.textContent = '· guardado'; setTimeout(() => { a.textContent = ''; }, 1500); } };
+      const obj = (id) => PDP().objetivos.find((o) => o.id === id);
+      r.querySelectorAll('[data-pdp]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { PDP()[el.dataset.pdp] = el.value.trim(); }); ok(); }));
+      r.querySelectorAll('textarea[data-k]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { obj(el.dataset.o)[el.dataset.k] = el.value.trim(); }); ok(); }));
+      r.querySelectorAll('[data-conducta-txt]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { obj(el.dataset.o).conductas.find((c) => c.id === el.dataset.conductaTxt).texto = el.value.trim(); }); ok(); }));
+      r.querySelectorAll('[data-conducta]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { obj(el.dataset.o).conductas.find((c) => c.id === el.dataset.conducta).hecha = el.checked; }); render(); }));
+      r.querySelectorAll('[data-rev]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { PDP().revisiones[el.dataset.rev] = { ...(PDP().revisiones[el.dataset.rev] || {}), notas: el.value.trim() }; }); ok(); }));
+    },
+  };
+}
+
 // ---------- Secciones de fases siguientes ----------
 function vProximamente(seccion) {
   const info = {
@@ -1175,6 +1357,11 @@ const acciones = {
   'vista-agenda': (b) => { vistaAgenda = b.dataset.v; render(); },
   'ir-dia': (b) => { document.getElementById(`dia-${b.dataset.d}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   'varios-dias': () => modalVariosDias(),
+  'hx-practica': (b) => modalPracticaFicha(b.dataset.id),
+  'pdp-objetivo': () => { S.actualizar((s) => { if (s.pdp.objetivos.length < 3) s.pdp.objetivos.push({ id: S.nuevoId(), titulo: '', conductas: [], registro: '' }); }); render(); },
+  'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
+  'pdp-conducta': (b) => { S.actualizar((s) => { s.pdp.objetivos.find((o) => o.id === b.dataset.o).conductas.push({ id: S.nuevoId(), texto: '', hecha: false }); }); render(); app.querySelector(`[data-o="${b.dataset.o}"][data-conducta-txt]:last-of-type`); const ts = app.querySelectorAll(`textarea[data-conducta-txt][data-o="${b.dataset.o}"]`); ts[ts.length - 1]?.focus(); },
+  'pdp-quitar-conducta': (b) => { S.actualizar((s) => { const o = s.pdp.objetivos.find((x) => x.id === b.dataset.o); o.conductas = o.conductas.filter((c) => c.id !== b.dataset.c); }); render(); },
   'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
   'cal-on': (b) => conCarga(b, async () => {
     await G.conectar({ calendario: true });
@@ -1244,7 +1431,12 @@ const rutas = [
   [/^#\/caso\/(.+)$/, (c) => vCaso(c)],
   [/^#\/exportar$/, (p) => vExportar(p)],
   [/^#\/ajustes$/, () => vAjustes()],
-  [/^#\/(guia|pdp|hexaflex)$/, (s) => vProximamente(s)],
+  [/^#\/hexaflex$/, () => vHexaflex()],
+  [/^#\/hexaflex\/modelo$/, () => vHxModelo()],
+  [/^#\/hexaflex\/p\/(\w+)$/, (k) => vHxProceso(k)],
+  [/^#\/hexaflex\/ficha\/(.+)$/, (id, p) => vHxFicha(decodeURIComponent(id), p)],
+  [/^#\/pdp$/, () => vPDP()],
+  [/^#\/(guia)$/, (s) => vProximamente(s)],
 ];
 function render() {
   const [ruta, qs] = (location.hash || '#/inicio').split('?');

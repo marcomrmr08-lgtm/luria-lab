@@ -12,4 +12,4 @@ App web instalable (PWA). No tiene servidor propio: funciona en el navegador y s
 
 1. **Registro y horas** (esta versión): agenda precargada, espejos y coterapias con diario crítico en Google Docs, tutorías de caso, fichas de tutorías y seminarios con su tarea, hoja de horas de Luria y diario crítico mensual (descarga en PDF/.xlsx para enviarlos a mano).
 2. Guía clínica y «Si yo fuera el terapeuta».
-3. PDP y banco Hexaflex.
+3. **PDP y banco Hexaflex** (hecha): teoría del modelo y de cada proceso, banco de fichas con tu experiencia de uso, y PDP con objetivos, conductas y revisiones.

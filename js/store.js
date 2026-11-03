@@ -1,6 +1,6 @@
 // Estado de la app: se guarda siempre en este dispositivo y, si hay conexión con
 // Google, se sincroniza con un archivo oculto en el Drive del alumno.
-import { TUTORIAS_METODOLOGICAS, SEMINARIOS, HORARIO_TM, TIPOS_HOJA } from './calendario.js';
+import { TUTORIAS_METODOLOGICAS, SEMINARIOS, HORARIO_TM, TIPOS_HOJA, FICHAS_EJEMPLO } from './calendario.js';
 
 const CLAVE = 'luria-lab-v1';
 let estado = null;
@@ -26,6 +26,8 @@ function porDefecto() {
     actividades: [],
     horasPrevias: [],
     informes: {},
+    hexaflex: { modelo: {}, procesos: {}, fichas: [] },
+    pdp: { fuertes: '', mejora: '', objetivos: [], revisiones: {} },
   };
 }
 
@@ -49,6 +51,13 @@ function completar(s) {
   s.ajustes = { ...d.ajustes, ...(s.ajustes || {}), horas: { ...d.ajustes.horas, ...(s.ajustes?.horas || {}) } };
   for (const k of ['terapeutas', 'actividades', 'horasPrevias', 'borrados']) if (!Array.isArray(s[k])) s[k] = [];
   if (!s.informes) s.informes = {};
+  if (!s.hexaflex) { s.hexaflex = { modelo: {}, procesos: {}, fichas: [] }; }
+  s.hexaflex.modelo = s.hexaflex.modelo || {}; s.hexaflex.procesos = s.hexaflex.procesos || {};
+  if (!Array.isArray(s.hexaflex.fichas)) s.hexaflex.fichas = [];
+  if (!s.hexaflex.ejemplos) { s.hexaflex.fichas.push(...FICHAS_EJEMPLO.map((f) => ({ ...f }))); s.hexaflex.ejemplos = true; }
+  if (!s.pdp) s.pdp = { fuertes: '', mejora: '', objetivos: [], revisiones: {} };
+  if (!Array.isArray(s.pdp.objetivos)) s.pdp.objetivos = [];
+  s.pdp.revisiones = s.pdp.revisiones || {};
   // La app ya no guarda correos: se eliminan los de versiones anteriores
   delete s.ajustes.correoFormacion; delete s.ajustes.correoPracticas;
   for (const t of s.terapeutas) delete t.email;
@@ -119,8 +128,16 @@ export function fusionar(local, remoto) {
   ajustes.carpetas = { ...(otro.carpetas || {}), ...(base.carpetas || {}) };
   const informes = { ...R.informes };
   for (const [m, v] of Object.entries(L.informes)) informes[m] = { ...(informes[m] || {}), ...v };
+  // Hexaflex: fichas de las dos copias; teoría y PDP de la copia que tenga contenido (o la más reciente)
+  const conTexto = (o) => JSON.stringify(o || {}).replace(/"[^"]*":""|[{}\[\],:]|"(fuertes|mejora|objetivos|revisiones)"/g, '').length > 0;
+  const fichas = new Map(R.hexaflex.fichas.filter((f) => !borrados.has(f.id)).map((f) => [f.id, f]));
+  for (const f of L.hexaflex.fichas) if (!borrados.has(f.id) && (localMasNuevo || !fichas.has(f.id))) fichas.set(f.id, f);
+  const elegir = (l, r) => (conTexto(l) && conTexto(r) ? (localMasNuevo ? l : r) : conTexto(l) ? l : r);
+  const hexaflex = { ...R.hexaflex, ...L.hexaflex, modelo: elegir(L.hexaflex.modelo, R.hexaflex.modelo), procesos: { ...R.hexaflex.procesos, ...Object.fromEntries(Object.entries(L.hexaflex.procesos).filter(([k, v]) => conTexto(v) && (localMasNuevo || !conTexto(R.hexaflex.procesos[k])))) }, fichas: [...fichas.values()] };
+  const pdp = elegir(L.pdp, R.pdp);
   return {
     ...R, ...L,
+    hexaflex, pdp,
     updatedAt: Date.now(),
     ajustes, informes,
     actividades: [...porId.values()],
