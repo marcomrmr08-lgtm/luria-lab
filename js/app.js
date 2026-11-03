@@ -248,6 +248,7 @@ function tarjetaHoy(a) {
 
 function pendientes() {
   const s = S.datos(); const hoy = hoyISO(); const lista = [];
+  if (s.horasPrevias.length) lista.push({ ic: 'reloj', c: 'ambar', t: 'Revisa tus totales antiguos sin día', s: 'Pueden contar dos veces y no marcan casillas en la hoja', h: '#/ajustes' });
   for (const a of s.actividades.filter((x) => x.estado === 'programada' && x.fecha < hoy && x.fecha >= sumarDias(hoy, -45)).sort(porFechaHora)) {
     lista.push({ ic: 'reloj', c: 'ambar', t: `¿Completas ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? 'la ficha de ' : ''}${titulo(a)}?`, s: fmtFecha(a.fecha) + ' · sin registrar', h: rutaForm(a) });
   }
@@ -733,7 +734,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.3.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.3.2</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
