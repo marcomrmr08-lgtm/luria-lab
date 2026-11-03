@@ -62,7 +62,8 @@ function sumarMinutos(fecha, hora, min) {
 function eventoDe(a) {
   const nombre = esSesion(a) ? `${nombreTipo(a)} · ${casoPub(a)}` : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : titulo(a);
   const lugar = esSesion(a) ? (a.formato === 'online' ? 'Online (Teams)' : 'Luria · presencial') : a.tipo === 'tutoria_caso' ? 'Zoom' : 'Luria · presencial';
-  const ev = { summary: nombre, location: lugar, description: 'Creado por Luria Lab. Los cambios se hacen desde la app.' };
+  const modo = esSesion(a) ? (a.formato === 'online' ? 'Online' : 'Presencial') : a.tipo === 'tutoria_caso' ? 'Online · Zoom' : 'Presencial';
+  const ev = { summary: `${nombre} · ${modo}`, location: lugar, description: 'Creado por Luria Lab. Los cambios se hacen desde la app.' };
   const hora = a.hora || (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? '10:00' : '');
   if (hora) {
     ev.start = { dateTime: `${a.fecha}T${hora}:00`, timeZone: 'Europe/Madrid' };
@@ -1056,7 +1057,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.1.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.1.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
