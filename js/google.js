@@ -1,0 +1,172 @@
+// Conexión con Google: inicio de sesión, Drive, Docs y Gmail.
+// Permisos limitados: la app solo ve los archivos que ella crea (drive.file),
+// su carpeta oculta de datos (drive.appdata) y puede enviar correos que el alumno aprueba (gmail.send).
+import { CONFIG } from './config.js';
+
+let token = null;
+let caduca = 0;
+let clienteToken = null;
+
+export const configurado = () => Boolean(CONFIG.CLIENT_ID);
+export const conectado = () => Boolean(token) && Date.now() < caduca - 60_000;
+
+function cargarGis() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar el inicio de sesión de Google. ¿Hay conexión?'));
+    document.head.appendChild(s);
+  });
+}
+
+// Debe llamarse desde un toque del usuario (abre la ventana de Google)
+export async function conectar() {
+  if (!configurado()) throw new Error('La app aún no tiene configurado el ID de cliente de Google.');
+  await cargarGis();
+  if (!clienteToken) {
+    clienteToken = google.accounts.oauth2.initTokenClient({ client_id: CONFIG.CLIENT_ID, scope: CONFIG.SCOPES, callback: () => {} });
+  }
+  await new Promise((res, rej) => {
+    clienteToken.callback = (r) => {
+      if (r.error) return rej(new Error('Google no dio permiso: ' + r.error));
+      if (!google.accounts.oauth2.hasGrantedAllScopes(r, ...CONFIG.SCOPES.split(' '))) {
+        return rej(new Error('Faltan permisos. Vuelve a conectar y marca todas las casillas.'));
+      }
+      token = r.access_token; caduca = Date.now() + Number(r.expires_in) * 1000;
+      try { localStorage.setItem('ll-google', '1'); } catch {}
+      res();
+    };
+    clienteToken.error_callback = (e) => rej(new Error(e?.type === 'popup_closed' ? 'Se cerró la ventana de Google.' : 'No se pudo conectar con Google.'));
+    clienteToken.requestAccessToken({ prompt: '' });
+  });
+}
+
+export function desconectar() {
+  if (token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(token, () => {});
+  token = null; caduca = 0;
+  try { localStorage.removeItem('ll-google'); } catch {}
+}
+export const conectadoAntes = () => { try { return localStorage.getItem('ll-google') === '1'; } catch { return false; } };
+
+async function api(url, opts = {}) {
+  if (!conectado()) await conectar();
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
+  if (r.status === 401) { token = null; throw new Error('La sesión de Google ha caducado. Pulsa «Conectar con Google» y repite.'); }
+  if (!r.ok) {
+    let msg = ''; try { msg = (await r.json()).error?.message || ''; } catch {}
+    throw new Error(`Google respondió con un error (${r.status})${msg ? ': ' + msg : ''}`);
+  }
+  return r;
+}
+const json = async (url, opts) => (await api(url, opts)).json();
+const DRIVE = 'https://www.googleapis.com/drive/v3';
+const SUBIDA = 'https://www.googleapis.com/upload/drive/v3/files';
+
+export const enlaceDoc = (id) => `https://docs.google.com/document/d/${id}/edit`;
+export const enlaceArchivo = (id) => `https://drive.google.com/file/d/${id}/view`;
+
+async function multipart(meta, cuerpo, tipo, id) {
+  const b = 'll' + Math.random().toString(36).slice(2);
+  const blob = new Blob([
+    `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: ${tipo}\r\n\r\n`,
+    cuerpo, `\r\n--${b}--`,
+  ]);
+  const url = id ? `${SUBIDA}/${id}?uploadType=multipart&fields=id` : `${SUBIDA}?uploadType=multipart&fields=id`;
+  return json(url, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': `multipart/related; boundary=${b}` }, body: blob });
+}
+
+// ---------- Datos de la app (carpeta oculta) ----------
+let idDatos = null;
+export async function leerDatos() {
+  const q = encodeURIComponent(`name='${CONFIG.ARCHIVO_DATOS}'`);
+  const r = await json(`${DRIVE}/files?spaces=appDataFolder&q=${q}&fields=files(id)`);
+  if (!r.files?.length) return null;
+  idDatos = r.files[0].id;
+  return (await api(`${DRIVE}/files/${idDatos}?alt=media`)).json();
+}
+export async function escribirDatos(obj) {
+  const cuerpo = JSON.stringify(obj);
+  if (idDatos) return multipart({}, cuerpo, 'application/json', idDatos);
+  const r = await multipart({ name: CONFIG.ARCHIVO_DATOS, parents: ['appDataFolder'] }, cuerpo, 'application/json');
+  idDatos = r.id; return r;
+}
+
+// ---------- Carpetas y documentos ----------
+async function existe(id) {
+  try { const f = await json(`${DRIVE}/files/${id}?fields=id,trashed`); return !f.trashed; } catch { return false; }
+}
+async function crearCarpeta(nombre, padre) {
+  const meta = { name: nombre, mimeType: 'application/vnd.google-apps.folder', ...(padre ? { parents: [padre] } : {}) };
+  return (await json(`${DRIVE}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(meta) })).id;
+}
+// ruta: ['Luria Lab', 'Casos', 'Caso 07']; cache: objeto donde se guardan los ids
+export async function carpeta(ruta, cache) {
+  let padre = null;
+  for (let i = 0; i < ruta.length; i++) {
+    const k = ruta.slice(0, i + 1).join('/');
+    let id = cache[k];
+    if (!id || !(await existe(id))) { id = await crearCarpeta(ruta[i], padre); cache[k] = id; }
+    padre = id;
+  }
+  return padre;
+}
+
+export async function docDesdeHtml(nombre, html, padre) {
+  return (await multipart({ name: nombre, mimeType: 'application/vnd.google-apps.document', parents: [padre] }, html, 'text/html; charset=UTF-8')).id;
+}
+export async function subirArchivo(nombre, blob, tipo, padre, convertirA) {
+  const meta = { name: nombre, parents: [padre], ...(convertirA ? { mimeType: convertirA } : {}) };
+  return (await multipart(meta, blob, tipo)).id;
+}
+export async function copiar(id, nombre, padre) {
+  return (await json(`${DRIVE}/files/${id}/copy?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, parents: [padre] }) })).id;
+}
+export async function descargarArchivo(id) {
+  return (await api(`${DRIVE}/files/${id}?alt=media`)).arrayBuffer();
+}
+export async function exportarPdf(id) {
+  return (await api(`${DRIVE}/files/${id}/export?mimeType=application/pdf`)).blob();
+}
+export async function exportarTexto(id) {
+  return (await api(`${DRIVE}/files/${id}/export?mimeType=text/plain`)).text();
+}
+
+const DOCS = 'https://docs.googleapis.com/v1/documents';
+async function lote(docId, requests) {
+  return json(`${DOCS}/${docId}:batchUpdate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
+}
+export async function reemplazarMarcas(docId, mapa) {
+  const requests = Object.entries(mapa).map(([k, v]) => ({
+    replaceAllText: { containsText: { text: `{{${k}}}`, matchCase: true }, replaceText: String(v ?? '') },
+  }));
+  if (requests.length) await lote(docId, requests);
+}
+export async function anadirAlFinal(docId, texto) {
+  const d = await json(`${DOCS}/${docId}?fields=body(content(endIndex))`);
+  const fin = d.body.content.at(-1).endIndex - 1;
+  await lote(docId, [{ insertText: { location: { index: fin }, text: '\n' + texto } }]);
+}
+
+// ---------- Gmail ----------
+const b64 = (s) => btoa(unescape(encodeURIComponent(s)));
+const trocear = (s) => s.replace(/.{1,76}/g, '$&\r\n');
+async function blobB64(blob) {
+  const u = new Uint8Array(await blob.arrayBuffer());
+  let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+export async function enviarCorreo({ para, cc, asunto, texto, adjuntos = [] }) {
+  const b = 'mx' + Math.random().toString(36).slice(2);
+  let m = `To: ${para}\r\n${cc ? `Cc: ${cc}\r\n` : ''}Subject: =?UTF-8?B?${b64(asunto)}?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${b}"\r\n\r\n`;
+  m += `--${b}\r\nContent-Type: text/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${trocear(b64(texto))}\r\n`;
+  for (const a of adjuntos) {
+    const n = `=?UTF-8?B?${b64(a.nombre)}?=`;
+    m += `--${b}\r\nContent-Type: ${a.tipo}; name="${n}"\r\nContent-Disposition: attachment; filename="${n}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${trocear(await blobB64(a.blob))}\r\n`;
+  }
+  m += `--${b}--`;
+  const raw = btoa(m).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return json('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ raw }),
+  });
+}
