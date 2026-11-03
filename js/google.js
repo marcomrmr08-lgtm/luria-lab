@@ -1,4 +1,4 @@
-// Conexión con Google: inicio de sesión, Drive y Docs. Sin acceso al correo.
+// Conexión con Google: inicio de sesión, Drive, Docs, Sheets y (opcional) el calendario propio de la app. Sin acceso al correo.
 // Permisos limitados: la app solo ve los archivos que ella crea (drive.file)
 // y su carpeta oculta de datos (drive.appdata).
 import { CONFIG } from './config.js';
@@ -20,19 +20,23 @@ function cargarGis() {
   });
 }
 
-// Debe llamarse desde un toque del usuario (abre la ventana de Google)
-export async function conectar() {
+// Debe llamarse desde un toque del usuario (abre la ventana de Google).
+// El permiso de calendario es opcional: solo se pide si el alumno activa Google Calendar.
+export const PERMISO_CALENDARIO = 'https://www.googleapis.com/auth/calendar.app.created';
+let conCalendario = false;
+export const tieneCalendario = () => conectado() && conCalendario;
+export async function conectar({ calendario = false } = {}) {
   if (!configurado()) throw new Error('La app aún no tiene configurado el ID de cliente de Google.');
   await cargarGis();
-  if (!clienteToken) {
-    clienteToken = google.accounts.oauth2.initTokenClient({ client_id: CONFIG.CLIENT_ID, scope: CONFIG.SCOPES, callback: () => {} });
-  }
+  const scopes = CONFIG.SCOPES.split(' ').concat(calendario ? [PERMISO_CALENDARIO] : []);
+  clienteToken = google.accounts.oauth2.initTokenClient({ client_id: CONFIG.CLIENT_ID, scope: scopes.join(' '), callback: () => {} });
   await new Promise((res, rej) => {
     clienteToken.callback = (r) => {
       if (r.error) return rej(new Error('Google no dio permiso: ' + r.error));
       if (!google.accounts.oauth2.hasGrantedAllScopes(r, ...CONFIG.SCOPES.split(' '))) {
         return rej(new Error('Faltan permisos. Vuelve a conectar y marca todas las casillas.'));
       }
+      conCalendario = google.accounts.oauth2.hasGrantedAllScopes(r, PERMISO_CALENDARIO);
       token = r.access_token; caduca = Date.now() + Number(r.expires_in) * 1000;
       try { localStorage.setItem('ll-google', '1'); } catch {}
       res();
@@ -44,7 +48,7 @@ export async function conectar() {
 
 export function desconectar() {
   if (token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(token, () => {});
-  token = null; caduca = 0;
+  token = null; caduca = 0; conCalendario = false;
   try { localStorage.removeItem('ll-google'); } catch {}
 }
 export const conectadoAntes = () => { try { return localStorage.getItem('ll-google') === '1'; } catch { return false; } };
@@ -55,6 +59,9 @@ async function api(url, opts = {}) {
   if (r.status === 401) { token = null; throw new Error('La sesión de Google ha caducado. Pulsa «Conectar con Google» y repite.'); }
   if (!r.ok) {
     let msg = ''; try { msg = (await r.json()).error?.message || ''; } catch {}
+    if (/calendar-json\.googleapis\.com|Calendar API/i.test(msg) && /disabled|not been used|has not been/i.test(msg)) {
+      throw new Error('Falta activar la «Google Calendar API» en Google Cloud (proyecto Luria Lab). Actívala y vuelve a intentarlo en un par de minutos.');
+    }
     if (/sheets\.googleapis\.com|Sheets API/i.test(msg) && /disabled|not been used|has not been/i.test(msg)) {
       throw new Error('Falta activar la «Google Sheets API» en Google Cloud (proyecto Luria Lab). Actívala y vuelve a intentarlo en un par de minutos.');
     }
@@ -160,4 +167,30 @@ export async function recrearDatos(obj) {
   for (const f of r.files || []) await api(`${DRIVE}/files/${f.id}`, { method: 'DELETE' });
   idDatos = null;
   return escribirDatos(obj);
+}
+
+// ---------- Google Calendar (solo el calendario «Luria Lab» que crea la app) ----------
+const CAL = 'https://www.googleapis.com/calendar/v3';
+let calVerificado = null;
+export async function asegurarCalendario(id) {
+  if (id && calVerificado === id) return id;
+  if (id) {
+    try { await json(`${CAL}/calendars/${encodeURIComponent(id)}?fields=id`); calVerificado = id; return id; }
+    catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; } // solo se crea otro si el anterior ya no existe
+  }
+  const c = await json(`${CAL}/calendars`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: 'Luria Lab', description: 'Prácticas · creado por la app Luria Lab', timeZone: 'Europe/Madrid' }) });
+  calVerificado = c.id;
+  return c.id;
+}
+export async function crearEvento(cal, ev) {
+  return (await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) })).id;
+}
+export async function cambiarEvento(cal, id, ev) {
+  return (await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}?fields=id`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) })).id;
+}
+export async function borrarEvento(cal, id) {
+  try { await api(`${CAL}/calendars/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; }
+}
+export async function borrarCalendario(cal) {
+  try { await api(`${CAL}/calendars/${encodeURIComponent(cal)}`, { method: 'DELETE' }); } catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; }
 }

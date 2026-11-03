@@ -29,11 +29,12 @@ async function subir() {
   if (subiendo) { otraVez = true; return; }
   subiendo = true;
   try { await G.escribirDatos(S.datos()); marcarPendiente(false); } catch (e) { marcarPendiente(true); console.warn('No se pudo sincronizar', e); }
+  sincronizarCalendario().catch((e) => console.warn('Calendario', e));
   subiendo = false;
   if (otraVez) { otraVez = false; subir(); }
 }
 async function conectarYSincronizar() {
-  await G.conectar();
+  await G.conectar({ calendario: Boolean(S.datos().ajustes.calendarioActivo) });
   const remoto = await G.leerDatos();
   // Nunca se sustituye una copia por otra: se juntan las dos, para no perder nada
   if (remoto) {
@@ -47,7 +48,52 @@ async function conectarYSincronizar() {
   if (!limpio) { await G.recrearDatos(S.datos()); try { localStorage.setItem('ll-limpieza-correos', '1'); } catch {} }
   else await G.escribirDatos(S.datos());
   marcarPendiente(false);
+  sincronizarCalendario().catch((e) => console.warn('Calendario', e));
 }
+// ======================= Google Calendar =======================
+// Solo se escribe en el calendario «Luria Lab» que crea la app. Va en una dirección: app → Calendar.
+const DURACION_MIN = { espejo: 60, coterapia: 60, tutoria_caso: 120, seminario: 120, tutoria_metodologica: 240, practica_pdp: 60 };
+function sumarMinutos(fecha, hora, min) {
+  const [y, m, d] = fecha.split('-').map(Number); const [h, mi] = hora.split(':').map(Number);
+  const t = new Date(y, m - 1, d, h, mi + min);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}T${p(t.getHours())}:${p(t.getMinutes())}:00`;
+}
+function eventoDe(a) {
+  const nombre = esSesion(a) ? `${nombreTipo(a)} · Caso ${a.caso || '—'}` : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : titulo(a);
+  const lugar = esSesion(a) ? (a.formato === 'online' ? 'Online (Teams)' : 'Luria · presencial') : a.tipo === 'tutoria_caso' ? 'Zoom' : 'Luria · presencial';
+  const ev = { summary: nombre, location: lugar, description: 'Creado por Luria Lab. Los cambios se hacen desde la app.' };
+  const hora = a.hora || (a.tipo === 'tutoria_metodologica' ? '10:00' : '');
+  if (hora) {
+    ev.start = { dateTime: `${a.fecha}T${hora}:00`, timeZone: 'Europe/Madrid' };
+    ev.end = { dateTime: sumarMinutos(a.fecha, hora, DURACION_MIN[a.tipo] || 60), timeZone: 'Europe/Madrid' };
+  } else { ev.start = { date: a.fecha }; ev.end = { date: sumarDias(a.fecha, 1) }; }
+  return ev;
+}
+let sincCal = false; let otraCal = false;
+async function sincronizarCalendario() {
+  const aj = S.datos().ajustes;
+  if (!aj.calendarioActivo || !G.tieneCalendario()) return;
+  if (sincCal) { otraCal = true; return; }
+  sincCal = true; let cambio = false;
+  try {
+    const cal = await G.asegurarCalendario(aj.calendarioId);
+    if (cal !== aj.calendarioId) { aj.calendarioId = cal; aj.eventos = {}; cambio = true; }
+    const eventos = aj.eventos || (aj.eventos = {});
+    const vivas = new Map(S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha')).map((a) => [a.id, a]));
+    for (const [id, a] of vivas) {
+      const ev = eventoDe(a); const h = JSON.stringify(ev); const e = eventos[id];
+      if (!e) { eventos[id] = { id: await G.crearEvento(cal, ev), h }; cambio = true; }
+      else if (e.h !== h) { try { await G.cambiarEvento(cal, e.id, ev); } catch { e.id = await G.crearEvento(cal, ev); } e.h = h; cambio = true; }
+    }
+    for (const id of Object.keys(eventos)) if (!vivas.has(id)) { await G.borrarEvento(cal, eventos[id].id); delete eventos[id]; cambio = true; }
+  } finally {
+    sincCal = false;
+    if (cambio) { try { localStorage.setItem('luria-lab-v1', JSON.stringify(S.datos())); } catch {} }
+    if (otraCal) { otraCal = false; sincronizarCalendario().catch((e) => console.warn('Calendario', e)); }
+  }
+}
+
 async function google() {
   if (!G.configurado()) throw new Error('La conexión con Google aún no está configurada.');
   if (!G.conectado()) { await conectarYSincronizar(); }
@@ -961,6 +1007,12 @@ function vAjustes() {
       <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button>
     </div>
 
+    <h2 class="etiqueta-grupo">Google Calendar</h2>
+    <div class="tarjeta lista">
+      <div class="fila"><span class="item-texto"><span style="font-size:15px">Enviar mi agenda a Google Calendar</span><span class="item-sub">${aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'La app crea un calendario «Luria Lab» y solo puede tocar ese'}</span></span>${aj.calendarioActivo ? '<button class="btn texto" data-act="cal-off">Desactivar</button>' : '<button class="btn texto" data-act="cal-on">Activar</button>'}</div>
+      ${aj.calendarioId ? '<div class="fila"><span class="item-texto"><span style="font-size:15px">Quitar el calendario «Luria Lab»</span><span class="item-sub">Lo borra de tu Google Calendar con todos sus eventos</span></span><button class="btn texto" style="color:var(--error)" data-act="cal-borrar">Quitar</button></div>' : ''}
+    </div>
+
     <h2 class="etiqueta-grupo">Apariencia</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Logo del centro</span><span class="item-sub">${logoURL ? 'Puesto · solo se ve en este dispositivo' : 'Solo se guarda en este dispositivo, no se publica'}</span></span><span style="display:flex">${logoURL ? '<button class="btn texto" data-act="quitar-logo">Quitar</button>' : ''}<label class="btn texto" for="in-logo" style="cursor:pointer">${logoURL ? 'Cambiar' : 'Subir imagen'}</label><input type="file" id="in-logo" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="oculto"></span></div>
@@ -972,7 +1024,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.9.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.0.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1083,6 +1135,20 @@ const acciones = {
   'vista-agenda': (b) => { vistaAgenda = b.dataset.v; render(); },
   'ir-dia': (b) => { document.getElementById(`dia-${b.dataset.d}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   'varios-dias': () => modalVariosDias(),
+  'cal-on': (b) => conCarga(b, async () => {
+    await G.conectar({ calendario: true });
+    if (!G.tieneCalendario()) throw new Error('Google no dio el permiso de calendario. Vuelve a intentarlo y marca la casilla del calendario.');
+    S.actualizar((s) => { s.ajustes.calendarioActivo = true; });
+    await sincronizarCalendario();
+    toast('Listo: tu agenda ya está en el calendario «Luria Lab» de Google Calendar.', { ms: 9000 }); render();
+  }),
+  'cal-off': () => { S.actualizar((s) => { s.ajustes.calendarioActivo = false; }); toast('Ya no se enviarán cambios a Google Calendar. El calendario «Luria Lab» sigue ahí.'); render(); },
+  'cal-borrar': () => confirmar('¿Quitar el calendario «Luria Lab»?', 'Se borra de tu Google Calendar con todos sus eventos. Tus registros en la app no se tocan.', 'Quitar', () => conCarga(null, async () => {
+    if (!G.tieneCalendario()) await G.conectar({ calendario: true });
+    await G.borrarCalendario(S.datos().ajustes.calendarioId);
+    S.actualizar((s) => { s.ajustes.calendarioId = null; s.ajustes.eventos = {}; s.ajustes.calendarioActivo = false; });
+    toast('Calendario quitado de Google Calendar.'); render();
+  })),
   'quitar-logo': async () => { await idbSet('logo', null); if (logoURL) URL.revokeObjectURL(logoURL); logoURL = null; render(); },
   archivar: (b) => archivar([b.dataset.id], !filtroDiario.archivadas),
   'ver-archivadas': () => { filtroDiario.archivadas = !filtroDiario.archivadas; render(); window.scrollTo(0, 0); },
