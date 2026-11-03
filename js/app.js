@@ -63,7 +63,7 @@ function eventoDe(a) {
   const nombre = esSesion(a) ? `${nombreTipo(a)} · Caso ${a.caso || '—'}` : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : titulo(a);
   const lugar = esSesion(a) ? (a.formato === 'online' ? 'Online (Teams)' : 'Luria · presencial') : a.tipo === 'tutoria_caso' ? 'Zoom' : 'Luria · presencial';
   const ev = { summary: nombre, location: lugar, description: 'Creado por Luria Lab. Los cambios se hacen desde la app.' };
-  const hora = a.hora || (a.tipo === 'tutoria_metodologica' ? '10:00' : '');
+  const hora = a.hora || (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? '10:00' : '');
   if (hora) {
     ev.start = { dateTime: `${a.fecha}T${hora}:00`, timeZone: 'Europe/Madrid' };
     ev.end = { dateTime: sumarMinutos(a.fecha, hora, DURACION_MIN[a.tipo] || 60), timeZone: 'Europe/Madrid' };
@@ -470,7 +470,7 @@ function vInicio() {
 let vistaAgenda = 'semana'; let semanaOffset = 0;
 const lunesDe = (iso) => { const d = new Date(iso + 'T12:00:00'); const w = (d.getDay() + 6) % 7; return sumarDias(iso, -w); };
 function itemAgenda(a, conFecha) {
-  const lugar = esSesion(a) ? (a.formato === 'online' ? 'online' : 'presencial') : a.tipo === 'tutoria_metodologica' ? '10-14 h' : a.tipo === 'tutoria_caso' ? 'Zoom' : '';
+  const lugar = esSesion(a) ? (a.formato === 'online' ? 'online' : 'presencial') : a.tipo === 'tutoria_metodologica' ? '10-14 h' : a.tipo === 'seminario' ? '2 h' : a.tipo === 'tutoria_caso' ? 'Zoom' : '';
   const nombre = esSesion(a) ? titulo(a) : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''}` : titulo(a);
   const sub = [conFecha ? fmtCorta(a.fecha) : '', a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? a.titulo : '', lugar].filter(Boolean).join(' · ');
   const estado = a.estado === 'hecha' ? '<span class="insignia ok">Hecha</span>' : a.estado === 'cancelada' ? '<span class="insignia">No asistí</span>' : (a.tipo === 'tutoria_metodologica' && REVISIONES_PDP.includes(a.numero) ? '<span class="insignia">Revisión PDP</span>' : '');
@@ -1024,7 +1024,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.0.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.0.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {

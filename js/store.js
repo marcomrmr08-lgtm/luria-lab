@@ -40,7 +40,7 @@ function asegurarPrecargadas(s) {
   }
   for (const t of SEMINARIOS) {
     const id = `sem-${t.n}`;
-    if (!ids.has(id)) s.actividades.push({ id, tipo: 'seminario', numero: t.n, titulo: t.titulo, fecha: t.fecha, hora: '', estado: 'programada', precargada: true, ficha: {} });
+    if (!ids.has(id)) s.actividades.push({ id, tipo: 'seminario', numero: t.n, titulo: t.titulo, fecha: t.fecha, hora: '10:00', estado: 'programada', precargada: true, ficha: {} });
   }
 }
 
@@ -54,6 +54,8 @@ function completar(s) {
   for (const t of s.terapeutas) delete t.email;
   for (const a of s.actividades) if (a.tarea) delete a.tarea.para;
   asegurarPrecargadas(s);
+  // Los seminarios son a las 10:00 salvo que se haya puesto otra hora
+  for (const a of s.actividades) if (a.tipo === 'seminario' && a.precargada && !a.hora) a.hora = '10:00';
   return s;
 }
 
