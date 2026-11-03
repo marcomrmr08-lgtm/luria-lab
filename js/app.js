@@ -12,6 +12,10 @@ const app = document.getElementById('app');
 const RAIZ = CONFIG.CARPETA_RAIZ;
 S.cargar();
 
+// Logo del centro: se guarda solo en este dispositivo (no se publica con la app)
+let logoURL = null;
+idbGet('logo').then((b) => { if (b) { logoURL = URL.createObjectURL(b); render(); } }).catch(() => {});
+
 // ======================= Sincronización con Drive =======================
 let temporizador = null; let subiendo = false; let otraVez = false;
 S.siempreAlGuardar(() => {
@@ -344,8 +348,8 @@ function vInicio() {
     ? `<a href="#/ajustes" class="item">${'<span class="icono-caja bg-verde">' + icon('ajustes', 20) + '</span>'}<span class="item-texto"><span class="item-titulo">Termina de configurar la app</span><span class="item-sub">${!s.ajustes.nombre ? 'Tu nombre' : ''}${!s.ajustes.nombre && !s.ajustes.plantillaHorasNombre ? ' y ' : ''}${!s.ajustes.plantillaHorasNombre ? 'la plantilla de horas de Luria' : ''}</span></span></a>` : '';
   return {
     html: `<div class="pantalla">
-    <header class="cabecera">
-      <div><span class="marca">Luria Lab</span><p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p><h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1></div>
+    <header class="cabecera-marca">
+      <div>${logoURL ? `<img src="${logoURL}" alt="Luria Lab" class="logo-centro">` : '<span class="marca">Luria Lab</span>'}<h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1><p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p></div>
       <div style="display:flex;gap:8px"><a href="#/exportar" class="icono-btn" aria-label="Exportar y entregas">${icon('descargar')}</a><a href="#/ajustes" class="icono-btn" aria-label="Ajustes">${icon('ajustes')}</a></div>
     </header>
     ${banda}${empezar}
@@ -846,13 +850,18 @@ function vAjustes() {
       <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button>
     </div>
 
+    <h2 class="etiqueta-grupo">Apariencia</h2>
+    <div class="tarjeta lista">
+      <div class="fila"><span class="item-texto"><span style="font-size:15px">Logo del centro</span><span class="item-sub">${logoURL ? 'Puesto · solo se ve en este dispositivo' : 'Solo se guarda en este dispositivo, no se publica'}</span></span><span style="display:flex">${logoURL ? '<button class="btn texto" data-act="quitar-logo">Quitar</button>' : ''}<label class="btn texto" for="in-logo" style="cursor:pointer">${logoURL ? 'Cambiar' : 'Subir imagen'}</label><input type="file" id="in-logo" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="oculto"></span></div>
+    </div>
+
     <h2 class="etiqueta-grupo">Cuenta</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cuenta de Google</span><span class="item-sub">${!G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · solo Drive y Docs, sin acceso al correo' : 'Sin conectar'}</span></span>${G.configurado() ? (G.conectado() ? '<button class="btn texto" data-act="desconectar">Desconectar</button>' : '<button class="btn texto" data-act="conectar">Conectar</button>') : ''}</div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.5.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.6.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -871,6 +880,13 @@ function vAjustes() {
           for (let i = 0; i < n; i++) st.actividades.push({ id: S.nuevoId(), tipo: v.tipo, fecha: v.fecha, hora: '', estado: 'hecha', pasada: true, caso: v.tipo === 'tutoria_caso' ? undefined : (v.caso || '').trim() || undefined, formato: v.tipo === 'tutoria_caso' ? 'zoom' : 'presencial', temas: [] });
         });
         toast(`Añadid${n === 1 ? 'a' : 'as'} ${n} · ${TIPOS[v.tipo].nombre.toLowerCase()} del ${fmtNum(v.fecha)}.`); render();
+      });
+      r.querySelector('#in-logo').addEventListener('change', async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        if (f.size > 2_000_000) { toast('La imagen es demasiado grande (máximo 2 MB).', { error: true }); return; }
+        await idbSet('logo', f);
+        if (logoURL) URL.revokeObjectURL(logoURL);
+        logoURL = URL.createObjectURL(f); toast('Logo puesto en este dispositivo.'); render();
       });
       r.querySelector('#in-importar').addEventListener('change', async (e) => {
         const files = [...e.target.files]; if (!files.length) return;
@@ -953,6 +969,7 @@ const acciones = {
   'no-enviar': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.noEnviar = !a.noEnviar; }); render(); },
   'add-tc': () => modalAnadirTC(),
   'varios-dias': () => modalVariosDias(),
+  'quitar-logo': async () => { await idbSet('logo', null); if (logoURL) URL.revokeObjectURL(logoURL); logoURL = null; render(); },
   archivar: (b) => archivar([b.dataset.id], !filtroDiario.archivadas),
   'ver-archivadas': () => { filtroDiario.archivadas = !filtroDiario.archivadas; render(); window.scrollTo(0, 0); },
   'archivar-vacias': () => archivar(S.hechas().filter((a) => !a.archivada && sinContenido(a)).map((a) => a.id), true),
