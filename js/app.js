@@ -337,7 +337,7 @@ function pendientes() {
   const d = new Date(); const dia = d.getDate();
   const mesPrev = hoyISO(new Date(d.getFullYear(), d.getMonth() - 1, 1)).slice(0, 7);
   if (dia <= 10 && S.hechas().some((a) => a.fecha.startsWith(mesPrev)) && !s.informes[mesPrev]?.enviado) {
-    lista.push({ ic: 'hoja', c: 'verde', t: `Hoja de horas de ${nombreMes(mesPrev).split(' ')[0].toLowerCase()} lista`, s: 'Revísala y envíala a Luria', h: `#/exportar?mes=${mesPrev}` });
+    lista.push({ ic: 'hoja', c: 'primario', t: `Hoja de horas de ${nombreMes(mesPrev).split(' ')[0].toLowerCase()} lista`, s: 'Revísala y envíala a Luria', h: `#/exportar?mes=${mesPrev}` });
   }
   return lista;
 }
@@ -353,11 +353,11 @@ function vInicio() {
     ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>${hayPendiente() ? '<b>Tienes cambios que aún no están guardados en tu Drive.</b> ' : ''}Así tus registros quedan guardados en tu Drive y no se pierden si cambias de móvil o borras la app. La app no tiene acceso a tu correo.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
     : !G.configurado() ? `<div class="aviso-caja">${icon('candado', 18)}<span>Modo prueba: tus datos se guardan solo en este dispositivo.</span></div>` : '';
   const empezar = !s.ajustes.nombre || !s.ajustes.plantillaHorasNombre
-    ? `<a href="#/ajustes" class="item">${'<span class="icono-caja bg-verde">' + icon('ajustes', 20) + '</span>'}<span class="item-texto"><span class="item-titulo">Termina de configurar la app</span><span class="item-sub">${!s.ajustes.nombre ? 'Tu nombre' : ''}${!s.ajustes.nombre && !s.ajustes.plantillaHorasNombre ? ' y ' : ''}${!s.ajustes.plantillaHorasNombre ? 'la plantilla de horas de Luria' : ''}</span></span></a>` : '';
+    ? `<a href="#/ajustes" class="item">${'<span class="icono-caja bg-primario">' + icon('ajustes', 20) + '</span>'}<span class="item-texto"><span class="item-titulo">Termina de configurar la app</span><span class="item-sub">${!s.ajustes.nombre ? 'Tu nombre' : ''}${!s.ajustes.nombre && !s.ajustes.plantillaHorasNombre ? ' y ' : ''}${!s.ajustes.plantillaHorasNombre ? 'la plantilla de horas de Luria' : ''}</span></span></a>` : '';
   return {
     html: `<div class="pantalla">
-    <header class="cabecera-marca">
-      <div>${logoURL ? `<img src="${logoURL}" alt="Luria Lab" class="logo-centro">` : '<span class="marca">Luria Lab</span>'}<h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1><p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p></div>
+    <header class="cabecera">
+      <div>${logoURL ? `<img src="${logoURL}" alt="Luria Lab" class="logo-centro">` : '<span class="marca">Luria Lab</span>'}<p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p><h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1></div>
       <div style="display:flex;gap:8px"><a href="#/exportar" class="icono-btn" aria-label="Exportar y entregas">${icon('descargar')}</a><a href="#/ajustes" class="icono-btn" aria-label="Ajustes">${icon('ajustes')}</a></div>
     </header>
     ${banda}${empezar}
@@ -869,7 +869,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.6.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.6.2</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
