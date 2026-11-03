@@ -161,33 +161,21 @@ function modalNoAsistir(id) {
   });
 }
 
-// La app nunca envía correos: descarga el PDF y el alumno lo envía desde su correo
-async function descargarPdf(boton, docId, nombre) {
-  await conCarga(boton, async () => {
-    await google();
-    descargar(await G.exportarPdf(docId), nombre);
-    toast('PDF descargado. Envíalo desde tu correo y márcalo como enviado.', { ms: 8000 });
-  });
-}
+// La app crea los documentos pero nunca vuelve a leer su contenido ni envía correos.
+const AYUDA_PDF = 'Para enviarlo: en el Doc, Archivo → Descargar → PDF, y mándalo desde tu correo.';
 
 function modalFeedback(id) {
   const a = S.actividad(id);
   abrirModal(`<h2>Feedback del terapeuta</h2>
   <form id="f-fb" class="seccion">
     <div class="campo"><label for="fb">Pega lo que te ha respondido</label><textarea id="fb" name="texto" rows="8" required></textarea>
-    <span class="ayuda">Se guarda aquí y se añade al final de tu diario crítico en Google Docs.</span></div>
-    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="b-fb">Guardar</button></div>
+    <span class="ayuda">Se guarda en la app, junto a la sesión. Si también lo quieres en el Doc, pégalo en el apartado «Feedback del terapeuta».</span></div>
+    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
   </form>`, (d) => {
     d.querySelector('#f-fb').addEventListener('submit', (e) => {
       e.preventDefault(); const v = leerForm(e.target);
-      conCarga(d.querySelector('#b-fb'), async () => {
-        S.actualizar(() => { (a.feedback = a.feedback || []).push({ fecha: hoyISO(), texto: v.texto.trim() }); });
-        if (a.docId && G.configurado()) {
-          try { await google(); await G.anadirAlFinal(a.docId, `${fmtNum(hoyISO())}: ${v.texto.trim()}`); }
-          catch (err) { toast('Guardado en la app, pero no se pudo añadir al Doc: ' + err.message, { error: true }); }
-        }
-        cerrarModal(); toast('Feedback guardado.'); render();
-      });
+      S.actualizar(() => { (a.feedback = a.feedback || []).push({ fecha: hoyISO(), texto: v.texto.trim() }); });
+      cerrarModal(); toast('Feedback guardado.'); render();
     });
   });
 }
@@ -485,7 +473,7 @@ function vFicha(id) {
       ${campo('dudas', 'Dudas para preguntar', 'Toca para añadir', 2)}
       ${tm ? `<section class="tarjeta"><div class="fila-entre"><span class="tipo c-morado" style="font-size:13px">Tarea de la tutoría</span>${t.enviada ? '<span class="insignia ok">Enviada</span>' : t.docId ? '<span class="insignia aviso">Sin enviar</span>' : ''}</div>
         <textarea name="tareaTexto" rows="2" placeholder="Qué pidió el profesor y para cuándo" style="border:0;padding:0">${esc(t.texto)}</textarea>
-        <div class="botones">${t.docId ? `<a class="btn" href="${G.enlaceDoc(t.docId)}" target="_blank" rel="noopener">Abrir Doc</a><button type="button" class="btn" id="b-pdf-tarea">${icon('descargar', 16)}Descargar PDF</button>` : `<button type="button" class="btn" id="b-crear-tarea" style="grid-column:span 2">${icon('doc', 16)}Crear Doc de la tarea</button>`}</div>
+        <div class="botones">${t.docId ? `<a class="btn" href="${G.enlaceDoc(t.docId)}" target="_blank" rel="noopener" style="grid-column:span 2">${icon('externo', 16)}Abrir Doc de la tarea</a>` : `<button type="button" class="btn" id="b-crear-tarea" style="grid-column:span 2">${icon('doc', 16)}Crear Doc de la tarea</button>`}</div>
         <label class="pequeno" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="tareaEnviada" value="1" ${t.enviada ? 'checked' : ''}> Ya la he enviado</label></section>` : ''}
       <button class="btn primario grande">Guardar</button>
     </form></div>`,
@@ -506,7 +494,6 @@ function vFicha(id) {
         S.actualizar(() => { a.tarea.docId = doc; });
         toast('Doc de la tarea creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render();
       }));
-      r.querySelector('#b-pdf-tarea')?.addEventListener('click', (e) => { guardarFicha(); descargarPdf(e.currentTarget, a.tarea.docId, `Tarea TM ${a.numero}.pdf`); });
     },
   };
 }
@@ -591,7 +578,7 @@ function vCaso(codigo) {
     const paso = (ok, pend, t) => `<span class="paso ${ok ? 'hecho' : pend ? 'pendiente' : ''}"><i>${ok ? icon('check', 14) : ''}</i>${t}</span>`;
     const botones = !a.docId
       ? `<button class="btn primario" data-act="crear-diario" data-id="${esc(a.id)}" style="grid-column:span 2">${icon('doc', 16)}Crear diario crítico</button>`
-      : `<a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir Doc</a><button class="btn" data-act="pdf-diario" data-id="${esc(a.id)}">${icon('descargar', 16)}Descargar PDF</button>${a.noEnviar ? '' : !a.enviado
+      : `<a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener" style="grid-column:span 2">${icon('externo', 16)}Abrir diario crítico</a>${a.noEnviar ? '' : !a.enviado
         ? `<button class="btn primario" data-act="marcar-enviado" data-id="${esc(a.id)}" style="grid-column:span 2">${icon('check', 16)}Ya lo he enviado</button>`
         : `<button class="btn primario" data-act="feedback" data-id="${esc(a.id)}" style="grid-column:span 2">Añadir feedback</button>`}`;
     return `<div class="tarjeta">
@@ -600,7 +587,8 @@ function vCaso(codigo) {
       ${a.notasCaliente ? `<p class="pequeno suave" style="line-height:1.45"><b>Notas en caliente:</b> ${esc(a.notasCaliente)}</p>` : ''}
       ${(a.feedback || []).map((f) => `<div class="feedback"><span class="tipo c-azul">Feedback · ${esc(fmtCorta(f.fecha))}</span>${esc(f.texto)}</div>`).join('')}
       <div class="botones">${botones}</div>
-      <div class="fila-entre"><a href="${rutaForm(a)}" class="pequeno" style="font-weight:600;padding:6px 0">Editar sesión</a>${!a.enviado ? `<button class="btn texto pequeno" data-act="no-enviar" data-id="${esc(a.id)}">${a.noEnviar ? 'Sí quiero enviarlo' : 'No enviar este diario'}</button>` : a.feedback?.length ? `<button class="btn texto pequeno" data-act="feedback" data-id="${esc(a.id)}">Añadir más feedback</button>` : ''}</div>
+      ${a.docId && !a.enviado && !a.noEnviar ? `<p class="mini suave">${AYUDA_PDF}</p>` : ''}
+      <div class="fila-entre"><a href="${rutaForm(a)}" class="pequeno" style="font-weight:600;padding:6px 0">Editar sesión</a>${!a.enviado ? `<button class="btn texto pequeno" data-act="no-enviar" data-id="${esc(a.id)}">${a.noEnviar ? 'Sí quiero enviarlo' : 'No enviar este diario'}</button>` : ''}</div>
     </div>`;
   }).join('');
   return {
@@ -630,12 +618,11 @@ async function generarMensual(mes) {
   await google();
   const s = S.datos();
   const delMes = S.hechas().filter((a) => a.fecha.startsWith(mes)).sort(porFechaHora);
-  const sesiones = [];
-  for (const a of delMes.filter(esSesion)) {
-    let texto = '';
-    if (a.docId) { try { texto = D.limpiarDiario(await G.exportarTexto(a.docId)); } catch (e) { console.warn(e); } }
-    sesiones.push({ titulo: `${nombreTipo(a)} · Caso ${a.caso} · ${fmtNum(a.fecha)}`, texto });
-  }
+  // De los casos solo se ponen enlaces: la app no lee lo que escribes sobre los pacientes
+  const sesiones = delMes.filter(esSesion).map((a) => ({
+    titulo: `${nombreTipo(a)} · Caso ${a.caso || '—'} · ${fmtNum(a.fecha)}`,
+    enlace: a.docId ? G.enlaceDoc(a.docId) : null,
+  }));
   const ter = (a) => S.terapeuta(a.terapeutaId)?.nombre;
   const html = D.diarioMensual({
     mes, nombre: s.ajustes.nombre, sesiones,
@@ -678,9 +665,9 @@ function vExportar(params) {
       ${inf.enviado ? `<div class="fila-entre"><span class="insignia ok">${icon('check', 14)}&nbsp;Enviado a Luria el ${esc(fmtNum(inf.enviado))}</span><button class="btn texto pequeno" data-act="marcar-luria" data-mes="${mes}">Desmarcar</button></div>` : `<button class="btn" data-act="marcar-luria" data-mes="${mes}">${icon('check', 16)}Ya lo he enviado a Luria</button>`}
     </section>
     <section class="tarjeta">
-      <span class="item-texto"><span style="font-size:16px;font-weight:700">Diario crítico del mes</span><span class="item-sub" style="line-height:1.4">Compila todas tus actividades, ordenadas por tipo, con preguntas guía para que escribas tu síntesis.</span></span>
+      <span class="item-texto"><span style="font-size:16px;font-weight:700">Diario crítico del mes</span><span class="item-sub" style="line-height:1.4">Compila tus actividades del mes, ordenadas por tipo, con preguntas guía para tu síntesis. De los casos incluye el enlace a cada diario, sin copiar su contenido.</span></span>
       <div class="insignias"><span class="insignia ok">${n('espejo') + n('coterapia')} espejos y coterapias</span><span class="insignia" style="background:var(--azul-cl);color:#234A70">${n('tutoria_caso')} T. de caso</span><span class="insignia" style="background:var(--morado-cl);color:#4F3570">${n('tutoria_metodologica')} T. metodológicas</span><span class="insignia aviso">${n('seminario')} seminarios</span><span class="insignia">${n('practica_pdp')} prácticas PDP</span></div>
-      ${inf.docId ? `<div class="botones"><a class="btn primario" href="${G.enlaceDoc(inf.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir borrador</a><button class="btn" data-act="pdf-mensual" data-mes="${mes}">${icon('descargar', 16)}Descargar PDF</button></div><button class="btn texto pequeno" data-act="mensual" data-mes="${mes}">Volver a generar</button><span class="mini suave">Generado el ${esc(fmtNum(inf.generado))}. Si vuelves a generarlo se crea un documento nuevo.</span>`
+      ${inf.docId ? `<div class="botones"><a class="btn primario" href="${G.enlaceDoc(inf.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir borrador</a><button class="btn" data-act="mensual" data-mes="${mes}">Volver a generar</button></div><span class="mini suave">Generado el ${esc(fmtNum(inf.generado))}. Si vuelves a generarlo se crea un documento nuevo. ${AYUDA_PDF}</span>`
         : `<button class="btn" data-act="mensual" data-mes="${mes}">${icon('doc', 16)}Generar borrador en Google Docs</button>`}
     </section></div>`,
     mount(r) { r.querySelector('#mes').addEventListener('change', (e) => irA(`#/exportar?mes=${e.target.value}`)); },
@@ -817,7 +804,6 @@ const acciones = {
   notas: (b) => abrirNotas(b, b.dataset.id),
   'no-asistir': (b) => modalNoAsistir(b.dataset.id),
   'crear-diario': (b) => conCarga(b, async () => { const doc = await crearDiario(b.dataset.id); toast('Diario crítico creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render(); }),
-  'pdf-diario': (b) => { const a = S.actividad(b.dataset.id); descargarPdf(b, a.docId, `Diario critico - Caso ${a.caso} - ${fmtNum(a.fecha).replaceAll('/', '-')}.pdf`); },
   'marcar-enviado': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.enviado = true; a.enviadoEn = hoyISO(); }); toast('Marcado como enviado.'); render(); },
   feedback: (b) => modalFeedback(b.dataset.id),
   'no-enviar': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.noEnviar = !a.noEnviar; }); render(); },
@@ -829,9 +815,7 @@ const acciones = {
     descargar(blob, `Registro horas - ${S.datos().ajustes.nombre || 'alumno'}.xlsx`);
     toast(avisos.length ? avisos.join(' ') : 'Hoja de horas descargada.', { ms: avisos.length ? 12000 : 5000 });
   }),
-  'marcar-luria': (b) => { const m = b.dataset.mes; S.actualizar((s) => { const inf = s.informes[m] || {}; if (inf.enviado) delete inf.enviado; else inf.enviado = hoyISO(); s.informes[m] = inf; }); render(); },
-  'pdf-mensual': (b) => descargarPdf(b, S.datos().informes[b.dataset.mes].docId, `Diario critico - ${nombreMes(b.dataset.mes)}.pdf`),
-  mensual: (b) => conCarga(b, async () => { const doc = await generarMensual(b.dataset.mes); toast('Borrador del diario mensual creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render(); }),
+  'marcar-luria': (b) => { const m = b.dataset.mes; S.actualizar((s) => { const inf = s.informes[m] || {}; if (inf.enviado) delete inf.enviado; else inf.enviado = hoyISO(); s.informes[m] = inf; }); render(); },  mensual: (b) => conCarga(b, async () => { const doc = await generarMensual(b.dataset.mes); toast('Borrador del diario mensual creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render(); }),
   'quitar-previa': (b) => { S.actualizar((s) => { s.horasPrevias.splice(Number(b.dataset.i), 1); }); render(); },
   'nuevo-ter': () => modalTerapeuta(null, () => render()),
   'editar-ter': (b) => {

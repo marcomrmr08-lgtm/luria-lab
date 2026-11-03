@@ -54,7 +54,7 @@ ${guia('Escribe aquí tu síntesis a partir de lo que tienes debajo.')}
 <p><b>¿Qué quiero trabajar el mes que viene?</b></p><p></p>`);
   if (sesiones.length) {
     sec.push('<h2>Espejos y coterapias</h2>');
-    for (const s of sesiones) sec.push(`<h3>${esc(s.titulo)}</h3>${s.texto ? parrafos(s.texto) : guia('Diario crítico sin texto todavía.')}`);
+    for (const s of sesiones) sec.push(`<h3>${s.enlace ? `<a href="${esc(s.enlace)}">${esc(s.titulo)}</a>` : esc(s.titulo)}</h3>${guia(s.enlace ? 'Resume aquí lo esencial de este diario (abre el enlace para consultarlo).' : 'Esta sesión no tiene diario crítico en la app.')}<p></p>`);
   }
   if (tutoriasCaso.length) {
     sec.push('<h2>Tutorías de caso</h2>');
@@ -73,11 +73,4 @@ ${guia('Escribe aquí tu síntesis a partir de lo que tienes debajo.')}
     for (const p of practicas) sec.push(`<p><b>${esc(fmtNum(p.fecha))} · ${esc(p.titulo)}:</b> ${esc(p.descripcion || '')}</p>`);
   }
   return `<html><body style="${estilo}">${sec.join('\n')}</body></html>`;
-}
-
-// Quita del texto exportado de un diario las líneas de guía de la plantilla
-export function limpiarDiario(texto) {
-  return texto.replace(/\r/g, '').split('\n').map((l) => l.trim())
-    .filter((l) => l && !/^¿Qué ha ocurrido\?|^¿Qué ha hecho el terapeuta|^¿Qué haría yo como terapeuta/.test(l))
-    .join('\n');
 }

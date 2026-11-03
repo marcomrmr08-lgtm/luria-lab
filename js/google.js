@@ -125,13 +125,8 @@ export async function copiar(id, nombre, padre) {
 export async function descargarArchivo(id) {
   return (await api(`${DRIVE}/files/${id}?alt=media`)).arrayBuffer();
 }
-export async function exportarPdf(id) {
-  return (await api(`${DRIVE}/files/${id}/export?mimeType=application/pdf`)).blob();
-}
-export async function exportarTexto(id) {
-  return (await api(`${DRIVE}/files/${id}/export?mimeType=text/plain`)).text();
-}
-
+// Nota: la app no lee el contenido de los diarios. Solo los crea (copia de la plantilla)
+// y rellena la cabecera en el momento de crearlos, antes de que escribas nada.
 const DOCS = 'https://docs.googleapis.com/v1/documents';
 async function lote(docId, requests) {
   return json(`${DOCS}/${docId}:batchUpdate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
@@ -141,11 +136,6 @@ export async function reemplazarMarcas(docId, mapa) {
     replaceAllText: { containsText: { text: `{{${k}}}`, matchCase: true }, replaceText: String(v ?? '') },
   }));
   if (requests.length) await lote(docId, requests);
-}
-export async function anadirAlFinal(docId, texto) {
-  const d = await json(`${DOCS}/${docId}?fields=body(content(endIndex))`);
-  const fin = d.body.content.at(-1).endIndex - 1;
-  await lote(docId, [{ insertText: { location: { index: fin }, text: '\n' + texto } }]);
 }
 
 // Borra el archivo de datos de Drive (con su historial de versiones) y lo crea de nuevo, limpio
