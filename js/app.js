@@ -388,21 +388,44 @@ function vInicio() {
 }
 
 // ---------- Agenda ----------
+let vistaAgenda = 'semana'; let semanaOffset = 0;
+const lunesDe = (iso) => { const d = new Date(iso + 'T12:00:00'); const w = (d.getDay() + 6) % 7; return sumarDias(iso, -w); };
+function itemAgenda(a, conFecha) {
+  const lugar = esSesion(a) ? (a.formato === 'online' ? 'online' : 'presencial') : a.tipo === 'tutoria_metodologica' ? '10-14 h' : a.tipo === 'tutoria_caso' ? 'Zoom' : '';
+  const nombre = esSesion(a) ? titulo(a) : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''}` : titulo(a);
+  const sub = [conFecha ? fmtCorta(a.fecha) : '', a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? a.titulo : '', lugar].filter(Boolean).join(' · ');
+  const estado = a.estado === 'hecha' ? '<span class="insignia ok">Hecha</span>' : a.estado === 'cancelada' ? '<span class="insignia">No asistí</span>' : (a.tipo === 'tutoria_metodologica' && REVISIONES_PDP.includes(a.numero) ? '<span class="insignia">Revisión PDP</span>' : '');
+  return `<a href="${a.estado === 'hecha' ? rutaVer(a) : rutaForm(a)}" class="item agenda-item ${a.estado === 'cancelada' ? 'cancelada' : ''}"><span class="agenda-hora">${esc(a.hora || '—')}</span><span class="dot ${color(a)}"></span><span class="item-texto"><span class="item-titulo">${esc(nombre)}</span>${sub ? `<span class="item-sub">${esc(sub)}</span>` : ''}</span>${estado}</a>`;
+}
 function vAgenda() {
   const s = S.datos(); const hoy = hoyISO();
-  const proximas = s.actividades.filter((a) => a.estado === 'programada' && a.fecha >= hoy).sort(porFechaHora);
-  let html = ''; let diaActual = '';
-  for (const a of proximas) {
-    if (a.fecha !== diaActual) { diaActual = a.fecha; html += `<h2 class="etiqueta-grupo">${a.fecha === hoy ? 'Hoy · ' : ''}${esc(fmtFecha(a.fecha))}</h2>`; }
-    const sub = esSesion(a) ? `${a.hora || 'sin hora'} · ${a.formato === 'online' ? 'online' : 'presencial'}` : a.tipo === 'tutoria_metodologica' ? `${esc(a.titulo)} · 10-14 h` : a.tipo === 'seminario' ? esc(a.titulo) : (a.hora || 'sin hora') + ' · Zoom';
-    html += `<a href="${rutaForm(a)}" class="item"><span class="dot ${color(a)}"></span><span class="item-texto"><span class="item-titulo">${esc(esSesion(a) ? titulo(a) : a.tipo === 'tutoria_metodologica' ? `T. metodológica ${a.numero}` : a.tipo === 'seminario' ? `Seminario ${a.numero}` : titulo(a))}</span><span class="item-sub">${sub}</span></span>${REVISIONES_PDP.includes(a.numero) && a.tipo === 'tutoria_metodologica' ? '<span class="insignia">Revisión PDP</span>' : ''}</a>`;
+  let cuerpo = '';
+  if (vistaAgenda === 'semana') {
+    const lunes = sumarDias(lunesDe(hoy), 7 * semanaOffset);
+    const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
+    const deDia = (d) => s.actividades.filter((a) => a.fecha === d).sort(porFechaHora);
+    const tira = dias.map((d) => { const n = deDia(d).filter((a) => a.estado !== 'cancelada').length; return `<a href="#dia-${d}" class="tira-dia ${d === hoy ? 'hoy' : ''}"><span>${'LMXJVSD'[dias.indexOf(d)]}</span><b>${Number(d.slice(8))}</b><i>${'•'.repeat(Math.min(n, 3)) || '&nbsp;'}</i></a>`; }).join('');
+    const rango = `${fmtCorta(dias[0])} – ${fmtCorta(dias[6])}`;
+    cuerpo = `<div class="fila-entre"><button class="icono-btn" data-act="semana" data-d="-1" aria-label="Semana anterior">${icon('atras', 20)}</button>
+      <span style="text-align:center"><b style="font-size:16px">${semanaOffset === 0 ? 'Esta semana' : semanaOffset === 1 ? 'Semana que viene' : semanaOffset === -1 ? 'Semana pasada' : esc(rango)}</b><br><span class="mini suave">${esc(rango)}</span></span>
+      <button class="icono-btn" data-act="semana" data-d="1" aria-label="Semana siguiente">${icon('sig', 20)}</button></div>
+      <div class="tira">${tira}</div>
+      ${semanaOffset !== 0 ? '<button class="btn texto pequeno" data-act="semana" data-d="0" style="align-self:center">Volver a hoy</button>' : ''}
+      ${dias.map((d) => { const acts = deDia(d); return `<section class="seccion dia-bloque ${d === hoy ? 'hoy' : ''}" id="dia-${d}"><h2 class="etiqueta-grupo">${d === hoy ? 'Hoy · ' : ''}${esc(fmtFecha(d))}</h2>${acts.length ? acts.map((a) => itemAgenda(a)).join('') : '<p class="mini suave" style="padding:2px 4px 6px">Nada planificado</p>'}</section>`; }).join('')}`;
+  } else {
+    const proximas = s.actividades.filter((a) => a.estado === 'programada' && a.fecha >= hoy).sort(porFechaHora);
+    let diaActual = '';
+    for (const a of proximas) {
+      if (a.fecha !== diaActual) { diaActual = a.fecha; cuerpo += `<h2 class="etiqueta-grupo">${a.fecha === hoy ? 'Hoy · ' : ''}${esc(fmtFecha(a.fecha))}</h2>`; }
+      cuerpo += itemAgenda(a);
+    }
+    cuerpo = cuerpo || '<p class="vacio">No hay nada planificado.</p>';
   }
   return {
     html: `<div class="pantalla sin-nav">${volver('#/inicio', 'Agenda')}
-    <section class="tarjeta"><span class="item-texto"><span style="font-size:16px;font-weight:700">Planificar</span><span class="item-sub" style="line-height:1.4">Las tutorías metodológicas y los seminarios ya están cargados con el calendario de Luria. Añade lo que te convoquen.</span></span>
-      <button class="btn linea" data-act="add-tc">${icon('mas', 18)}Tutorías de caso del mes</button>
-      <button class="btn linea" data-act="add-sesion">${icon('mas', 18)}Espejo o coterapia asignado</button></section>
-    ${html || '<p class="vacio">No hay nada planificado.</p>'}</div>`,
+    <div class="segmentado" role="tablist"><button class="seg-btn ${vistaAgenda === 'semana' ? 'activo' : ''}" data-act="vista-agenda" data-v="semana" role="tab" aria-selected="${vistaAgenda === 'semana'}">Semana</button><button class="seg-btn ${vistaAgenda === 'lista' ? 'activo' : ''}" data-act="vista-agenda" data-v="lista" role="tab" aria-selected="${vistaAgenda === 'lista'}">Próximas</button></div>
+    <div class="botones"><button class="btn linea" data-act="add-tc">${icon('mas', 18)}T. de caso</button><button class="btn linea" data-act="add-sesion">${icon('mas', 18)}Espejo / coterapia</button></div>
+    ${cuerpo}</div>`,
   };
 }
 
@@ -916,7 +939,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.7.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.8.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1023,6 +1046,8 @@ const acciones = {
   feedback: (b) => modalFeedback(b.dataset.id),
   'no-enviar': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.noEnviar = !a.noEnviar; }); render(); },
   'add-tc': () => modalAnadirTC(),
+  semana: (b) => { const d = Number(b.dataset.d); semanaOffset = d === 0 ? 0 : semanaOffset + d; render(); },
+  'vista-agenda': (b) => { vistaAgenda = b.dataset.v; render(); },
   'varios-dias': () => modalVariosDias(),
   'quitar-logo': async () => { await idbSet('logo', null); if (logoURL) URL.revokeObjectURL(logoURL); logoURL = null; render(); },
   archivar: (b) => archivar([b.dataset.id], !filtroDiario.archivadas),
