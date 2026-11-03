@@ -47,7 +47,7 @@ function asegurarPrecargadas(s) {
 function completar(s) {
   const d = porDefecto();
   s.ajustes = { ...d.ajustes, ...(s.ajustes || {}), horas: { ...d.ajustes.horas, ...(s.ajustes?.horas || {}) } };
-  for (const k of ['terapeutas', 'actividades', 'horasPrevias']) if (!Array.isArray(s[k])) s[k] = [];
+  for (const k of ['terapeutas', 'actividades', 'horasPrevias', 'borrados']) if (!Array.isArray(s[k])) s[k] = [];
   if (!s.informes) s.informes = {};
   // La app ya no guarda correos: se eliminan los de versiones anteriores
   delete s.ajustes.correoFormacion; delete s.ajustes.correoPracticas;
@@ -74,6 +74,15 @@ export function guardar() {
 
 export function actualizar(fn) { fn(estado); guardar(); }
 
+// Borra actividades o terapeutas y lo recuerda, para que no vuelvan al juntarse con la copia de Drive
+export function borrar(ids) {
+  const set = new Set(ids);
+  estado.actividades = estado.actividades.filter((a) => !set.has(a.id));
+  estado.terapeutas = estado.terapeutas.filter((t) => !set.has(t.id));
+  estado.borrados = [...new Set([...(estado.borrados || []), ...ids])];
+  guardar();
+}
+
 export function reemplazar(nuevo, { sincronizar = false } = {}) {
   estado = completar(nuevo);
   try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch {}
@@ -90,15 +99,17 @@ export function fusionar(local, remoto) {
   const L = completar(JSON.parse(JSON.stringify(local)));
   const R = completar(JSON.parse(JSON.stringify(remoto)));
   const localMasNuevo = (L.updatedAt || 0) >= (R.updatedAt || 0);
-  const porId = new Map(R.actividades.map((a) => [a.id, a]));
+  const borrados = new Set([...(L.borrados || []), ...(R.borrados || [])]);
+  const porId = new Map(R.actividades.filter((a) => !borrados.has(a.id)).map((a) => [a.id, a]));
   for (const a of L.actividades) {
+    if (borrados.has(a.id)) continue;
     const r = porId.get(a.id);
     if (!r) porId.set(a.id, a);
     else if (intacta(a) && !intacta(r)) { /* se queda la de Drive, que tiene más */ }
     else if (intacta(r) && !intacta(a)) porId.set(a.id, a);
     else if (localMasNuevo) porId.set(a.id, a);
   }
-  const ter = new Map(R.terapeutas.map((t) => [t.id, t]));
+  const ter = new Map(R.terapeutas.filter((t) => !borrados.has(t.id)).map((t) => [t.id, t]));
   for (const t of L.terapeutas) ter.set(t.id, t);
   const base = ajustesVacios(L.ajustes) ? R.ajustes : ajustesVacios(R.ajustes) ? L.ajustes : (localMasNuevo ? L.ajustes : R.ajustes);
   const otro = base === L.ajustes ? R.ajustes : L.ajustes;
@@ -112,7 +123,8 @@ export function fusionar(local, remoto) {
     ajustes, informes,
     actividades: [...porId.values()],
     terapeutas: [...ter.values()],
-    horasPrevias: L.horasPrevias.length ? L.horasPrevias : R.horasPrevias,
+    horasPrevias: L.horasPrevias,
+    borrados: [...borrados],
   };
 }
 
@@ -125,7 +137,6 @@ export function horasDe(a) { return Number(estado.ajustes.horas[a.tipo] || 0); }
 
 export function totalHoras() {
   let h = hechas().reduce((s, a) => s + horasDe(a), 0);
-  for (const p of estado.horasPrevias) h += Number(p.sesiones || 0) * Number(estado.ajustes.horas[p.tipo] || 0);
   return h;
 }
 
@@ -134,7 +145,6 @@ export function conteos(mes) {
   const c = Object.fromEntries(TIPOS_HOJA.map((t) => [t, 0]));
   c.practica_pdp = 0;
   for (const a of hechas()) if (!mes || a.fecha.startsWith(mes)) c[a.tipo] = (c[a.tipo] || 0) + 1;
-  for (const p of estado.horasPrevias) if (!mes || p.mes === mes) c[p.tipo] = (c[p.tipo] || 0) + Number(p.sesiones || 0);
   return c;
 }
 

@@ -323,7 +323,7 @@ function tarjetaHoy(a) {
 
 function pendientes() {
   const s = S.datos(); const hoy = hoyISO(); const lista = [];
-  if (s.horasPrevias.length) lista.push({ ic: 'reloj', c: 'ambar', t: 'Revisa tus totales antiguos sin día', s: 'Pueden contar dos veces y no marcan casillas en la hoja', h: '#/ajustes' });
+  if (s.horasPrevias.length) lista.push({ ic: 'reloj', c: 'ambar', t: 'Tienes totales antiguos sin día', s: 'Ya no cuentan: añade esas actividades con su día en Ajustes', h: '#/ajustes' });
   for (const a of s.actividades.filter((x) => x.estado === 'programada' && x.fecha < hoy && x.fecha >= sumarDias(hoy, -45)).sort(porFechaHora)) {
     lista.push({ ic: 'reloj', c: 'ambar', t: `¿Completas ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? 'la ficha de ' : ''}${titulo(a)}?`, s: fmtFecha(a.fecha) + ' · sin registrar', h: rutaForm(a) });
   }
@@ -489,7 +489,7 @@ function vSesion(id) {
         } else { toast('Guardado.'); irA(destino); }
       });
       r.querySelector('#b-borrar')?.addEventListener('click', () => confirmar('¿Eliminar esta sesión?', a.docId ? 'Se borra de la app. El diario crítico seguirá en tu Drive.' : 'Se borra de la app.', 'Eliminar', () => {
-        S.actualizar((s) => { s.actividades = s.actividades.filter((x) => x.id !== a.id); }); toast('Sesión eliminada.'); irA('#/inicio');
+        S.borrar([a.id]); toast('Sesión eliminada.'); irA('#/inicio');
       }));
     },
   };
@@ -528,7 +528,7 @@ function vTC(id) {
         toast('Guardado.'); irA(a.estado === 'hecha' ? '#/diario' : '#/agenda');
       });
       r.querySelector('#b-borrar')?.addEventListener('click', () => confirmar('¿Eliminar esta tutoría de caso?', 'Se borra de la app.', 'Eliminar', () => {
-        S.actualizar((s) => { s.actividades = s.actividades.filter((x) => x.id !== a.id); }); irA('#/inicio');
+        S.borrar([a.id]); irA('#/inicio');
       }));
     },
   };
@@ -606,7 +606,7 @@ function vPractica(id) {
         toast('Guardado.'); irA('#/diario');
       });
       r.querySelector('#b-borrar')?.addEventListener('click', () => confirmar('¿Eliminar esta práctica?', 'Se borra de la app.', 'Eliminar', () => {
-        S.actualizar((s) => { s.actividades = s.actividades.filter((x) => x.id !== a.id); }); irA('#/diario');
+        S.borrar([a.id]); irA('#/diario');
       }));
     },
   };
@@ -896,7 +896,7 @@ function vAjustes() {
         <div class="campo" data-solo-sesion><label for="p-caso">Código de caso <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="p-caso" name="caso" list="l-casos-p"><datalist id="l-casos-p">${[...S.casos().keys()].map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
         <div class="dos-col" style="align-items:end"><div class="campo"><label for="p-n">Cuántas ese día</label><input type="number" id="p-n" name="cantidad" min="1" max="8" value="1"></div><button class="btn">Añadir</button></div>
       </form>
-      ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales sin día añadidos antes (cuentan en tus horas pero no se marcan en la hoja): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
+      ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales antiguos sin día (ya no cuentan en tus horas ni en la hoja; quítalos y usa la importación o el calendario): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
     </div>
 
     <h2 class="etiqueta-grupo">Mis terapeutas</h2>
@@ -916,7 +916,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.7.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.7.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1048,7 +1048,7 @@ const acciones = {
     modalTerapeuta(t, () => render());
     const d = document.getElementById('modal');
     d.querySelector('.botones').insertAdjacentHTML('afterend', '<button type="button" class="btn texto" id="b-del-ter" style="color:var(--error)">Eliminar terapeuta</button>');
-    d.querySelector('#b-del-ter').addEventListener('click', () => { S.actualizar((s) => { s.terapeutas = s.terapeutas.filter((x) => x.id !== t.id); }); cerrarModal(); render(); });
+    d.querySelector('#b-del-ter').addEventListener('click', () => { S.borrar([t.id]); cerrarModal(); render(); });
   },
   'plantilla-defecto': () => { S.actualizar((s) => { s.ajustes.plantillaDiarioId = null; s.ajustes.plantillaPropia = false; }); toast('Usarás la plantilla predeterminada.'); render(); },
   copia: () => descargar(new Blob([JSON.stringify(S.datos(), null, 2)], { type: 'application/json' }), `luria-lab-copia-${hoyISO()}.json`),
