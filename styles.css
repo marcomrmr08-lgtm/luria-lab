@@ -182,3 +182,7 @@ dialog#modal::backdrop { background: rgba(18, 21, 48, 0.5); }
 .agenda-hora { font-size: 13px; font-weight: 700; color: var(--suave); min-width: 40px; font-variant-numeric: tabular-nums; }
 .agenda-item.cancelada { opacity: 0.55; }
 .agenda-item.cancelada .item-titulo { text-decoration: line-through; }
+.dias label { position: relative; }
+.dias label.es-hoy { border-color: var(--verde); border-width: 2px; }
+.dias .punto { position: absolute; bottom: 5px; width: 5px; height: 5px; border-radius: 3px; background: var(--azul); }
+.dias input:checked + label .punto { background: #fff; }

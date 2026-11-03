@@ -193,20 +193,53 @@ function modalFeedback(id) {
 }
 
 function modalAnadirTC() {
-  const fila = (i) => `<div class="dos-col" data-fila><div class="campo"><label for="tc-f${i}">Fecha</label><input type="date" id="tc-f${i}" name="fecha" required></div><div class="campo"><label for="tc-h${i}">Hora</label><input type="time" id="tc-h${i}" name="hora"></div></div>`;
-  let n = 1;
-  abrirModal(`<h2>Tutorías de caso del mes</h2>
-  <p class="suave pequeno">Añade las fechas que os han convocado.</p>
-  <form id="f-tc" class="seccion"><div id="filas" class="seccion">${fila(0)}</div>
-    <button type="button" class="btn linea" id="b-otra">${icon('mas', 18)}Añadir otra fecha</button>
-    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
+  const hoy = hoyISO();
+  let mes = MESES.includes(hoy.slice(0, 7)) ? hoy.slice(0, 7) : MESES[0];
+  const sel = new Map(); // fecha -> {hora, terapeutaId}
+  abrirModal(`<h2>Tutorías de caso</h2>
+  <p class="suave pequeno" style="line-height:1.4">Toca los días en que te han convocado y pon la hora de cada una.</p>
+  <form id="f-tc" class="seccion">
+    <div class="campo"><label for="tc-mes">Mes</label><select id="tc-mes">${MESES.map((m) => `<option value="${m}" ${m === mes ? 'selected' : ''}>${esc(nombreMes(m))}</option>`).join('')}</select></div>
+    <div id="tc-dias" class="dias" role="group" aria-label="Días del mes"></div>
+    <div id="tc-sel" class="seccion"></div>
+    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="b-tc">Guardar</button></div>
   </form>`, (d) => {
-    d.querySelector('#b-otra').addEventListener('click', () => { d.querySelector('#filas').insertAdjacentHTML('beforeend', fila(n++)); });
+    const yaHay = (f) => S.datos().actividades.filter((a) => a.tipo === 'tutoria_caso' && a.fecha === f && a.estado !== 'cancelada').length;
+    const pintarLista = () => {
+      const fechas = [...sel.keys()].sort();
+      const caja = d.querySelector('#tc-sel');
+      if (!fechas.length) { caja.innerHTML = ''; d.querySelector('#b-tc').textContent = 'Guardar'; return; }
+      caja.innerHTML = `<div class="dos-col" style="align-items:end"><div class="campo"><label for="tc-todas">Misma hora para todas</label><input type="time" id="tc-todas"></div><button type="button" class="btn" id="b-todas">Aplicar</button></div>
+        <div class="tarjeta lista">${fechas.map((f) => `<div class="fila" style="flex-wrap:wrap"><span style="font-weight:700;min-width:96px">${esc(fmtFecha(f, { weekday: 'short', day: 'numeric', month: 'short' }))}${yaHay(f) ? `<br><span class="mini suave">ya tienes ${yaHay(f)}</span>` : ''}</span>
+          <span style="display:flex;gap:6px;flex:1;min-width:200px"><input type="time" data-hora="${f}" value="${esc(sel.get(f).hora)}" aria-label="Hora" style="min-height:40px;flex:0 0 108px"><select data-ter="${f}" data-terapeuta aria-label="Terapeuta" style="min-height:40px">${opcionesTerapeuta(sel.get(f).terapeutaId)}</select></span></div>`).join('')}</div>`;
+      d.querySelector('#b-tc').textContent = `Guardar ${fechas.length} tutoría${fechas.length === 1 ? '' : 's'}`;
+      caja.querySelectorAll('[data-hora]').forEach((i) => i.addEventListener('input', () => { sel.get(i.dataset.hora).hora = i.value; }));
+      caja.querySelectorAll('[data-ter]').forEach((i) => i.addEventListener('change', () => { if (i.value !== '__nuevo') sel.get(i.dataset.ter).terapeutaId = i.value || null; }));
+      caja.querySelector('#b-todas').addEventListener('click', () => {
+        const h = caja.querySelector('#tc-todas').value; if (!h) return;
+        for (const v of sel.values()) v.hora = h;
+        caja.querySelectorAll('[data-hora]').forEach((i) => { i.value = h; });
+      });
+      montarSelectorTerapeuta(caja);
+    };
+    const pintarDias = () => {
+      const [y, m] = mes.split('-').map(Number);
+      const nd = new Date(y, m, 0).getDate(); const ini = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+      let h = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((x) => `<span class="dia-cab" aria-hidden="true">${x}</span>`).join('') + '<span></span>'.repeat(ini);
+      for (let i = 1; i <= nd; i++) {
+        const f = `${mes}-${String(i).padStart(2, '0')}`;
+        h += `<input type="checkbox" id="tcd-${i}" value="${f}" ${sel.has(f) ? 'checked' : ''}><label for="tcd-${i}" class="${f === hoy ? 'es-hoy' : ''}">${i}${yaHay(f) ? '<i class="punto"></i>' : ''}</label>`;
+      }
+      const g = d.querySelector('#tc-dias'); g.innerHTML = h;
+      g.onchange = (e) => { const f = e.target.value; if (e.target.checked) sel.set(f, { hora: '', terapeutaId: null }); else sel.delete(f); pintarLista(); };
+    };
+    d.querySelector('#tc-mes').addEventListener('change', (e) => { mes = e.target.value; pintarDias(); });
+    pintarDias(); pintarLista();
     d.querySelector('#f-tc').addEventListener('submit', (e) => {
       e.preventDefault();
-      const filas = [...d.querySelectorAll('[data-fila]')].map((f) => ({ fecha: f.querySelector('[name=fecha]').value, hora: f.querySelector('[name=hora]').value })).filter((f) => f.fecha);
-      S.actualizar((s) => { for (const f of filas) s.actividades.push({ id: S.nuevoId(), tipo: 'tutoria_caso', fecha: f.fecha, hora: f.hora, estado: 'programada', formato: 'zoom', temas: [] }); });
-      cerrarModal(); toast(`${filas.length} tutoría${filas.length === 1 ? '' : 's'} de caso añadida${filas.length === 1 ? '' : 's'}.`); render();
+      if (!sel.size) { toast('Toca al menos un día.', { error: true }); return; }
+      S.actualizar((s) => { for (const [f, v] of sel) s.actividades.push({ id: S.nuevoId(), tipo: 'tutoria_caso', fecha: f, hora: v.hora, terapeutaId: v.terapeutaId, estado: 'programada', formato: 'zoom', temas: [] }); });
+      const n = sel.size; cerrarModal(); toast(`${n} tutoría${n === 1 ? '' : 's'} de caso añadida${n === 1 ? '' : 's'} a la agenda.`); render();
     });
   });
 }
@@ -939,7 +972,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.8.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.9.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
