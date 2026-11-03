@@ -3,7 +3,7 @@ import { CONFIG } from './config.js';
 import * as S from './store.js';
 import * as G from './google.js';
 import * as D from './documentos.js';
-import { generarHoja, leerHoja } from './hojaHoras.js';
+import { generarHoja, leerHoja, asignarCasillas, mesDeTitulo, COLUMNAS_HOJA } from './hojaHoras.js';
 import { Zip } from './zip.js';
 import { TIPOS, TIPOS_HOJA, TEMAS, MESES, REVISIONES_PDP } from './calendario.js';
 import { esc, hoyISO, sumarDias, fmtFecha, fmtCorta, fmtNum, nombreMes, toast, abrirModal, cerrarModal, conCarga, idbGet, idbSet, descargar, icon } from './ui.js';
@@ -749,6 +749,49 @@ async function hojaBlob() {
   const acts = S.hechas().filter((a) => TIPOS_HOJA.includes(a.tipo)).map((a) => ({ tipo: a.tipo, fecha: a.fecha }));
   return generarHoja(await plantillaHoras(), acts, s.ajustes.nombre);
 }
+// Crea (una vez) la hoja de horas en Google Sheets a partir de la plantilla de Luria
+// y marca las casillas con lo registrado. Las casillas se ponen como casillas de Google Sheets.
+async function hojaEnSheets() {
+  await google();
+  const aj = S.datos().ajustes;
+  let id = aj.hojaHorasId;
+  if (id && !(await G.existeArchivo(id))) id = null;
+  if (!id) {
+    const buf = await plantillaHoras();
+    const dir = await G.carpeta([RAIZ, 'Horas'], aj.carpetas);
+    id = await G.subirArchivo(`Registro de horas${aj.nombre ? ' - ' + aj.nombre : ''}`, new Blob([buf]), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dir, 'application/vnd.google-apps.spreadsheet');
+    S.actualizar((st) => { st.ajustes.hojaHorasId = id; });
+  }
+  const acts = S.hechas().filter((a) => TIPOS_HOJA.includes(a.tipo)).map((a) => ({ tipo: a.tipo, fecha: a.fecha }));
+  const { porMes, avisos } = asignarCasillas(acts);
+  const requests = [];
+  for (const t of await G.pestanas(id)) {
+    const mes = mesDeTitulo(t.title); if (!mes) continue;
+    const marcadas = porMes[mes] || {};
+    const rango = { sheetId: t.sheetId, startRowIndex: 7, endRowIndex: 38, startColumnIndex: 1, endColumnIndex: 16 };
+    requests.push({ setDataValidation: { range: rango, rule: { condition: { type: 'BOOLEAN' }, strict: true } } });
+    const filas = [];
+    for (let f = 8; f <= 38; f++) filas.push({ values: COLUMNAS_HOJA.map((c) => ({ userEnteredValue: { boolValue: Boolean(marcadas[`${c}${f}`]) } })) });
+    requests.push({ updateCells: { range: rango, rows: filas, fields: 'userEnteredValue' } });
+    if (aj.nombre) requests.push({ updateCells: { range: { sheetId: t.sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 1 }, rows: [{ values: [{ userEnteredValue: { stringValue: `Nombre y apellidos: ${aj.nombre}` } }] }], fields: 'userEnteredValue' } });
+  }
+  if (!requests.length) throw new Error('No encuentro las pestañas de los meses en la plantilla.');
+  await G.loteHoja(id, requests);
+  S.actualizar((st) => { st.ajustes.hojaHorasActualizada = hoyISO(); });
+  return { id, avisos };
+}
+
+// Lista del mes, día a día, para revisar o marcar a mano
+function resumenMes(mes) {
+  const porDia = new Map();
+  for (const a of S.hechas().filter((x) => TIPOS_HOJA.includes(x.tipo) && x.fecha.startsWith(mes)).sort(porFechaHora)) {
+    const d = Number(a.fecha.slice(8)); const m = porDia.get(d) || {}; m[a.tipo] = (m[a.tipo] || 0) + 1; porDia.set(d, m);
+  }
+  if (!porDia.size) return '<p class="pequeno suave">No hay actividades registradas este mes.</p>';
+  const nom = { coterapia: 'coterapia', espejo: 'espejo', tutoria_metodologica: 'T. metodológica', tutoria_caso: 'T. de caso', seminario: 'seminario' };
+  return `<div class="tarjeta lista" style="border:0">${[...porDia.entries()].map(([d, m]) => `<div class="fila"><span style="font-weight:700;min-width:56px">Día ${d}</span><span class="pequeno" style="text-align:right">${Object.entries(m).map(([t, n]) => `${n > 1 ? n + ' × ' : ''}${nom[t]}`).join(' · ')}</span></div>`).join('')}</div>`;
+}
+
 async function generarMensual(mes) {
   await google();
   const s = S.datos();
@@ -795,8 +838,12 @@ function vExportar(params) {
         <span class="celda"><b>${c.seminario}</b><span>Seminario</span></span>
       </div>
       ${!s.ajustes.plantillaHorasNombre ? `<div class="aviso-caja">${icon('hoja', 18)}<span>Para generar la hoja, sube primero la plantilla de Luria en <a href="#/ajustes" style="font-weight:700">Ajustes</a>.</span></div>` : ''}
-      <button class="btn primario" data-act="descargar-hoja">${icon('descargar', 16)}Descargar hoja de horas (.xlsx)</button>
-      <span class="mini suave" style="line-height:1.4">El archivo incluye todos los meses con lo que has registrado. Envíalo desde tu correo junto con el diario crítico del mes.</span>
+      ${s.ajustes.hojaHorasId ? `<div class="botones"><a class="btn primario" href="${G.enlaceHoja(s.ajustes.hojaHorasId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir en Sheets</a><button class="btn" data-act="hoja-sheets">Actualizar casillas</button></div>
+      <span class="mini suave" style="line-height:1.4">${s.ajustes.hojaHorasActualizada ? `Actualizada el ${esc(fmtNum(s.ajustes.hojaHorasActualizada))}. ` : ''}Pulsa «Actualizar casillas» antes de enviarla. Para enviarla: en Sheets, <b>Archivo → Descargar → Microsoft Excel (.xlsx)</b>, y adjúntala en tu correo.</span>`
+        : `<button class="btn primario" data-act="hoja-sheets">${icon('hoja', 16)}Crear la hoja en Google Sheets</button>
+      <span class="mini suave" style="line-height:1.4">Se crea en tu Drive (carpeta Luria Lab › Horas) con la plantilla de Luria y las casillas marcadas. Incluye todos los meses.</span>`}
+      <details><summary class="pequeno" style="font-weight:700;cursor:pointer;padding:6px 0">Ver el mes día a día</summary>${resumenMes(mes)}</details>
+      <button class="btn texto pequeno" data-act="descargar-hoja" style="align-self:flex-start">Descargar el .xlsx directamente (sin Sheets)</button>
       ${inf.enviado ? `<div class="fila-entre"><span class="insignia ok">${icon('check', 14)}&nbsp;Enviado a Luria el ${esc(fmtNum(inf.enviado))}</span><button class="btn texto pequeno" data-act="marcar-luria" data-mes="${mes}">Desmarcar</button></div>` : `<button class="btn" data-act="marcar-luria" data-mes="${mes}">${icon('check', 16)}Ya lo he enviado a Luria</button>`}
     </section>
     <section class="tarjeta">
@@ -869,7 +916,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.6.2</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.7.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -983,6 +1030,11 @@ const acciones = {
   'archivar-vacias': () => archivar(S.hechas().filter((a) => !a.archivada && sinContenido(a)).map((a) => a.id), true),
   'add-sesion': () => modalAnadirSesion(),
   filtro: (b) => { filtroDiario.tipo = b.dataset.tipo; render(); },
+  'hoja-sheets': (b) => conCarga(b, async () => {
+    const { id, avisos } = await hojaEnSheets();
+    toast(avisos.length ? 'Hoja actualizada. ' + avisos.join(' ') : 'Hoja de horas actualizada en Google Sheets.', { enlace: G.enlaceHoja(id), texto: 'Abrir', ms: avisos.length ? 14000 : 9000 });
+    render();
+  }),
   'descargar-hoja': (b) => conCarga(b, async () => {
     const { blob, avisos } = await hojaBlob();
     descargar(blob, `Registro horas - ${S.datos().ajustes.nombre || 'alumno'}.xlsx`);

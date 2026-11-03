@@ -37,6 +37,14 @@ async function hojasPorMes(zip) {
   return porMes;
 }
 
+export const COLUMNAS_HOJA = TODAS;
+// Mes (1-12) a partir del nombre de la pestaña («Octubre », «Septiembre 2024»…)
+export function mesDeTitulo(titulo) {
+  const n = quitarTildes(titulo || '');
+  const i = NOMBRES_MES.findIndex((m) => n.startsWith(m));
+  return i >= 0 ? i + 1 : null;
+}
+
 // actividades: [{tipo, fecha:'YYYY-MM-DD'}] → casillas por mes
 export function asignarCasillas(actividades) {
   const porMes = {}; const avisos = []; const usadas = {};

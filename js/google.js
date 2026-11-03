@@ -55,6 +55,9 @@ async function api(url, opts = {}) {
   if (r.status === 401) { token = null; throw new Error('La sesión de Google ha caducado. Pulsa «Conectar con Google» y repite.'); }
   if (!r.ok) {
     let msg = ''; try { msg = (await r.json()).error?.message || ''; } catch {}
+    if (/sheets\.googleapis\.com|Sheets API/i.test(msg) && /disabled|not been used|has not been/i.test(msg)) {
+      throw new Error('Falta activar la «Google Sheets API» en Google Cloud (proyecto Luria Lab). Actívala y vuelve a intentarlo en un par de minutos.');
+    }
     throw new Error(`Google respondió con un error (${r.status})${msg ? ': ' + msg : ''}`);
   }
   return r;
@@ -125,6 +128,18 @@ export async function copiar(id, nombre, padre) {
 export async function descargarArchivo(id) {
   return (await api(`${DRIVE}/files/${id}?alt=media`)).arrayBuffer();
 }
+// ---------- Google Sheets (hoja de horas) ----------
+const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+export const enlaceHoja = (id) => `https://docs.google.com/spreadsheets/d/${id}/edit`;
+export const existeArchivo = (id) => existe(id);
+export async function pestanas(id) {
+  const r = await json(`${SHEETS}/${id}?fields=sheets.properties(sheetId,title)`);
+  return r.sheets.map((s) => s.properties);
+}
+export async function loteHoja(id, requests) {
+  return json(`${SHEETS}/${id}:batchUpdate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) });
+}
+
 // Nota: la app no lee el contenido de los diarios. Solo los crea (copia de la plantilla)
 // y rellena la cabecera en el momento de crearlos, antes de que escribas nada.
 const DOCS = 'https://docs.googleapis.com/v1/documents';
