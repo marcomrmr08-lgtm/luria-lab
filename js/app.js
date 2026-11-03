@@ -120,9 +120,11 @@ function ponerAlias(codigo, valor) {
   if (valor) m[k] = valor; else delete m[k];
   try { localStorage.setItem(ALIAS, JSON.stringify(m)); } catch {}
 }
+// Si el código ya empieza por «Caso», no se repite la palabra
+const etiquetaCaso = (c) => { const t = (c || '—').trim(); return /^caso\b/i.test(t) ? t : `Caso ${t}`; };
 // Código del caso: público (calendario, Docs) y en la app (con el alias privado)
-const casoPub = (a) => `Caso ${a.caso || '—'}${inicialesTer(S.terapeuta(a.terapeutaId)) ? ' · ' + inicialesTer(S.terapeuta(a.terapeutaId)) : ''}`;
-const casoApp = (a) => { const al = aliasDe(a.caso); return `Caso ${a.caso || '—'}${al ? ' · ' + al : ''}${inicialesTer(S.terapeuta(a.terapeutaId)) ? ' · ' + inicialesTer(S.terapeuta(a.terapeutaId)) : ''}`; };
+const casoPub = (a) => `${etiquetaCaso(a.caso)}${inicialesTer(S.terapeuta(a.terapeutaId)) ? ' · ' + inicialesTer(S.terapeuta(a.terapeutaId)) : ''}`;
+const casoApp = (a) => { const al = aliasDe(a.caso); return `${etiquetaCaso(a.caso)}${al ? ' · ' + al : ''}${inicialesTer(S.terapeuta(a.terapeutaId)) ? ' · ' + inicialesTer(S.terapeuta(a.terapeutaId)) : ''}`; };
 const primerNombre = () => (S.datos().ajustes.nombre || '').trim().split(/\s+/)[0];
 
 function titulo(a) {
@@ -184,9 +186,9 @@ async function crearDiario(id) {
   await google();
   const a = S.actividad(id);
   const codigo = a.caso.trim();
-  const dir = await G.carpeta([RAIZ, 'Casos', `Caso ${codigo}`], S.datos().ajustes.carpetas);
+  const dir = await G.carpeta([RAIZ, 'Casos', etiquetaCaso(codigo)], S.datos().ajustes.carpetas);
   const ini = inicialesTer(S.terapeuta(a.terapeutaId));
-  const nombre = `Caso ${codigo}${ini ? ' ' + ini : ''} – S${S.numeroSesion(a)} – ${nombreTipo(a)} – ${fmtNum(a.fecha).replaceAll('/', '-')}`;
+  const nombre = `${etiquetaCaso(codigo)}${ini ? ' ' + ini : ''} – S${S.numeroSesion(a)} – ${nombreTipo(a)} – ${fmtNum(a.fecha).replaceAll('/', '-')}`;
   let doc;
   try { doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
   catch { S.datos().ajustes.plantillaDiarioId = null; doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
@@ -852,7 +854,7 @@ function vCaso(codigo) {
   }).join('');
   return {
     html: `<div class="pantalla sin-nav">${volver('#/diario', 'Diario')}
-    <div class="item-texto"><h1 class="titulo" style="font-size:30px">Caso ${esc(codigo)}${aliasDe(codigo) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(aliasDe(codigo))}</span>` : ''}${ultima && inicialesTer(S.terapeuta(ultima.terapeutaId)) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(inicialesTer(S.terapeuta(ultima.terapeutaId)))}</span>` : ''}</h1>
+    <div class="item-texto"><h1 class="titulo" style="font-size:30px">${esc(etiquetaCaso(codigo))}${aliasDe(codigo) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(aliasDe(codigo))}</span>` : ''}${ultima && inicialesTer(S.terapeuta(ultima.terapeutaId)) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(inicialesTer(S.terapeuta(ultima.terapeutaId)))}</span>` : ''}</h1>
     <span class="suave pequeno">${ultima ? 'Terapeuta: ' + esc(S.terapeuta(ultima.terapeutaId)?.nombre || '') + ' · ' : ''}${hechasC.length} sesi${hechasC.length === 1 ? 'ón' : 'ones'}${hechasC[0] ? ' · desde el ' + esc(fmtCorta(hechasC[0].fecha)) : ''}</span></div>
     <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Alias privado del paciente</label>
       <div class="dos-col" style="grid-template-columns:1fr auto"><input type="text" id="alias" maxlength="12" value="${esc(aliasDe(codigo))}" placeholder="p. ej. sus iniciales" autocomplete="off"><button class="btn">Guardar</button></div>
@@ -1057,7 +1059,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.1.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.1.2</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
