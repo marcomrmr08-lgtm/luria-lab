@@ -60,7 +60,7 @@ function sumarMinutos(fecha, hora, min) {
   return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}T${p(t.getHours())}:${p(t.getMinutes())}:00`;
 }
 function eventoDe(a) {
-  const nombre = esSesion(a) ? `${nombreTipo(a)} · Caso ${a.caso || '—'}` : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : titulo(a);
+  const nombre = esSesion(a) ? `${nombreTipo(a)} · ${casoPub(a)}` : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}` : titulo(a);
   const lugar = esSesion(a) ? (a.formato === 'online' ? 'Online (Teams)' : 'Luria · presencial') : a.tipo === 'tutoria_caso' ? 'Zoom' : 'Luria · presencial';
   const ev = { summary: nombre, location: lugar, description: 'Creado por Luria Lab. Los cambios se hacen desde la app.' };
   const hora = a.hora || (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? '10:00' : '');
@@ -104,10 +104,28 @@ const porFechaHora = (x, y) => (x.fecha + (x.hora || '99')).localeCompare(y.fech
 const esSesion = (a) => a.tipo === 'espejo' || a.tipo === 'coterapia';
 const color = (a) => TIPOS[a.tipo]?.color || 'gris';
 const nombreTipo = (a) => TIPOS[a.tipo]?.nombre || a.tipo;
+// Iniciales del terapeuta (dato profesional: pueden ir en todas partes)
+function inicialesTer(t) {
+  if (!t) return '';
+  if (t.iniciales) return t.iniciales.toUpperCase();
+  return t.nombre.trim().split(/\s+/).filter((w) => !/^(de|del|la|las|los|y)$/i.test(w)).map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+}
+// Alias privado del paciente: SOLO en este dispositivo (no va a Drive, Calendar ni Docs)
+const ALIAS = 'll-alias-casos';
+const leerAlias = () => { try { return JSON.parse(localStorage.getItem(ALIAS)) || {}; } catch { return {}; } };
+const aliasDe = (codigo) => (codigo ? leerAlias()[codigo.trim()] || '' : '');
+function ponerAlias(codigo, valor) {
+  const m = leerAlias(); const k = codigo.trim();
+  if (valor) m[k] = valor; else delete m[k];
+  try { localStorage.setItem(ALIAS, JSON.stringify(m)); } catch {}
+}
+// Código del caso: público (calendario, Docs) y en la app (con el alias privado)
+const casoPub = (a) => `Caso ${a.caso || '—'}${inicialesTer(S.terapeuta(a.terapeutaId)) ? ' · ' + inicialesTer(S.terapeuta(a.terapeutaId)) : ''}`;
+const casoApp = (a) => { const al = aliasDe(a.caso); return `Caso ${a.caso || '—'}${al ? ' · ' + al : ''}${inicialesTer(S.terapeuta(a.terapeutaId)) ? ' · ' + inicialesTer(S.terapeuta(a.terapeutaId)) : ''}`; };
 const primerNombre = () => (S.datos().ajustes.nombre || '').trim().split(/\s+/)[0];
 
 function titulo(a) {
-  if (esSesion(a)) return `${nombreTipo(a)} · Caso ${a.caso || '—'}`;
+  if (esSesion(a)) return `${nombreTipo(a)} · ${casoPub(a)}`;
   if (a.tipo === 'tutoria_metodologica') return `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}`;
   if (a.tipo === 'seminario') return `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}`;
   if (a.tipo === 'tutoria_caso') return 'Tutoría de caso' + (S.terapeuta(a.terapeutaId) ? ` · ${S.terapeuta(a.terapeutaId).nombre}` : '');
@@ -166,7 +184,8 @@ async function crearDiario(id) {
   const a = S.actividad(id);
   const codigo = a.caso.trim();
   const dir = await G.carpeta([RAIZ, 'Casos', `Caso ${codigo}`], S.datos().ajustes.carpetas);
-  const nombre = `Caso ${codigo} – S${S.numeroSesion(a)} – ${nombreTipo(a)} – ${fmtNum(a.fecha).replaceAll('/', '-')}`;
+  const ini = inicialesTer(S.terapeuta(a.terapeutaId));
+  const nombre = `Caso ${codigo}${ini ? ' ' + ini : ''} – S${S.numeroSesion(a)} – ${nombreTipo(a)} – ${fmtNum(a.fecha).replaceAll('/', '-')}`;
   let doc;
   try { doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
   catch { S.datos().ajustes.plantillaDiarioId = null; doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
@@ -196,12 +215,14 @@ function modalTerapeuta(t, alGuardar) {
   abrirModal(`<h2>${t ? 'Editar terapeuta' : 'Añadir terapeuta'}</h2>
   <form id="f-ter" class="seccion">
     <div class="campo"><label for="t-nombre">Nombre</label><input type="text" id="t-nombre" name="nombre" required value="${esc(t?.nombre)}"><span class="ayuda">Solo el nombre, para agrupar tus sesiones. La app no guarda correos.</span></div>
+    <div class="campo"><label for="t-ini">Iniciales <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="t-ini" name="iniciales" maxlength="4" value="${esc(t?.iniciales)}" placeholder="Se calculan solas del nombre" autocomplete="off"><span class="ayuda">Aparecen en el código del caso, también en Google Calendar.</span></div>
     <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
   </form>`, (d) => {
     d.querySelector('#f-ter').addEventListener('submit', (e) => {
       e.preventDefault(); const v = leerForm(e.target);
       let ter = t;
-      S.actualizar((s) => { if (ter) Object.assign(ter, { nombre: v.nombre.trim() }); else { ter = { id: S.nuevoId(), nombre: v.nombre.trim() }; s.terapeutas.push(ter); } });
+      const ini = (v.iniciales || '').trim().toUpperCase();
+      S.actualizar((s) => { if (ter) Object.assign(ter, { nombre: v.nombre.trim(), iniciales: ini }); else { ter = { id: S.nuevoId(), nombre: v.nombre.trim(), iniciales: ini }; s.terapeutas.push(ter); } });
       cerrarModal(); alGuardar?.(ter);
     });
   });
@@ -395,7 +416,7 @@ function tarjetaHoy(a) {
       : `<button class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}${a.notasDocId ? 'Ver notas' : 'Abrir notas'}</button><a href="${rutaForm(a)}" class="btn primario">Completar</a>`;
   const sub = esSesion(a) ? (a.formato === 'online' ? 'online' : 'presencial') : a.tipo === 'tutoria_caso' ? 'Zoom' : '';
   return `<div class="tarjeta"><div class="fila-entre" style="align-items:flex-start">
-    <span class="item-texto"><span class="tipo c-${color(a)}">${esc(nombreTipo(a))}${sub ? ' · ' + sub : ''}</span><span style="font-size:16px;font-weight:700">${esc(esSesion(a) ? `Caso ${a.caso} · sesión ${S.numeroSesion(a)}` : a.tipo === 'tutoria_caso' ? titulo(a) : a.titulo || titulo(a))}</span></span>
+    <span class="item-texto"><span class="tipo c-${color(a)}">${esc(nombreTipo(a))}${sub ? ' · ' + sub : ''}</span><span style="font-size:16px;font-weight:700">${esc(esSesion(a) ? `${casoApp(a)} · sesión ${S.numeroSesion(a)}` : a.tipo === 'tutoria_caso' ? titulo(a) : a.titulo || titulo(a))}</span></span>
     <span style="font-size:15px;font-weight:700">${esc(a.hora || '')}</span></div>
     <div class="botones" style="align-items:center">${botones}</div></div>`;
 }
@@ -407,8 +428,8 @@ function pendientes() {
     lista.push({ ic: 'reloj', c: 'ambar', t: `¿Completas ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? 'la ficha de ' : ''}${titulo(a)}?`, s: fmtFecha(a.fecha) + ' · sin registrar', h: rutaForm(a) });
   }
   for (const a of S.hechas().filter((x) => esSesion(x) && !x.pasada && x.caso)) {
-    if (!a.docId) lista.push({ ic: 'doc', c: 'ambar', t: 'Crear diario crítico', s: `Caso ${a.caso} · ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
-    else if (!a.enviado && !a.noEnviar) lista.push({ ic: 'correo', c: 'ambar', t: 'Enviar diario crítico al terapeuta', s: `Caso ${a.caso} · ${nombreTipo(a).toLowerCase()} del ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
+    if (!a.docId) lista.push({ ic: 'doc', c: 'ambar', t: 'Crear diario crítico', s: `${casoApp(a)} · ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
+    else if (!a.enviado && !a.noEnviar) lista.push({ ic: 'correo', c: 'ambar', t: 'Enviar diario crítico al terapeuta', s: `${casoApp(a)} · ${nombreTipo(a).toLowerCase()} del ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
   }
   for (const a of S.hechas().filter((x) => x.tipo === 'tutoria_metodologica' && x.tarea?.docId && !x.tarea?.enviada)) {
     lista.push({ ic: 'birrete', c: 'morado', t: `Enviar la tarea de la T. metodológica ${a.numero}`, s: a.titulo, h: rutaForm(a) });
@@ -471,7 +492,7 @@ let vistaAgenda = 'semana'; let semanaOffset = 0;
 const lunesDe = (iso) => { const d = new Date(iso + 'T12:00:00'); const w = (d.getDay() + 6) % 7; return sumarDias(iso, -w); };
 function itemAgenda(a, conFecha) {
   const lugar = esSesion(a) ? (a.formato === 'online' ? 'online' : 'presencial') : a.tipo === 'tutoria_metodologica' ? '10-14 h' : a.tipo === 'seminario' ? '2 h' : a.tipo === 'tutoria_caso' ? 'Zoom' : '';
-  const nombre = esSesion(a) ? titulo(a) : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''}` : titulo(a);
+  const nombre = esSesion(a) ? `${nombreTipo(a)} · ${casoApp(a)}` : a.tipo === 'tutoria_metodologica' ? `T. metodológica${a.numero ? ' ' + a.numero : ''}` : a.tipo === 'seminario' ? `Seminario${a.numero ? ' ' + a.numero : ''}` : titulo(a);
   const sub = [conFecha ? fmtCorta(a.fecha) : '', a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? a.titulo : '', lugar].filter(Boolean).join(' · ');
   const estado = a.estado === 'hecha' ? '<span class="insignia ok">Hecha</span>' : a.estado === 'cancelada' ? '<span class="insignia">No asistí</span>' : (a.tipo === 'tutoria_metodologica' && REVISIONES_PDP.includes(a.numero) ? '<span class="insignia">Revisión PDP</span>' : '');
   return `<a href="${a.estado === 'hecha' ? rutaVer(a) : rutaForm(a)}" class="item agenda-item ${a.estado === 'cancelada' ? 'cancelada' : ''}"><span class="agenda-hora">${esc(a.hora || '—')}</span><span class="dot ${color(a)}"></span><span class="item-texto"><span class="item-titulo">${esc(nombre)}</span>${sub ? `<span class="item-sub">${esc(sub)}</span>` : ''}</span>${estado}</a>`;
@@ -779,7 +800,7 @@ function vDiario() {
       const n = ['idea', 'guia', 'aplica', 'dudas'].filter((k) => a.ficha?.[k]).length;
       detalle = `<span class="insignias"><span class="insignia">Ficha · ${n} de 4 apartados</span>${a.tipo === 'tutoria_metodologica' && a.tarea?.docId && !a.tarea?.enviada ? '<span class="insignia aviso">Tarea sin enviar</span>' : ''}</span>`;
     } else detalle = a.descripcion ? `<span class="item-sub">${esc(a.descripcion.slice(0, 120))}</span>` : '';
-    const etiqueta = esSesion(a) ? `${nombreTipo(a)} · Caso ${a.caso || '—'}` : (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') ? `${nombreTipo(a)}${a.numero ? ' ' + a.numero : ''}` : nombreTipo(a);
+    const etiqueta = esSesion(a) ? `${nombreTipo(a)} · ${casoApp(a)}` : (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') ? `${nombreTipo(a)}${a.numero ? ' ' + a.numero : ''}` : nombreTipo(a);
     html += `<div class="deslizable" data-id="${esc(a.id)}"><span class="fondo-archivar" aria-hidden="true">${icon(verArch ? 'diario' : 'papelera', 20)}${verArch ? 'Recuperar' : 'Archivar'}</span>
       <a href="${rutaVer(a)}" class="item" style="flex-direction:column;align-items:stretch;gap:8px"><span class="fila-entre"><span class="tipo c-${color(a)}">${esc(etiqueta)}</span><span class="pequeno suave">${esc(fmtCorta(a.fecha))} · ${S.horasDe(a)} h</span></span>
       ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' || a.tipo === 'practica_pdp' ? `<span class="item-titulo">${esc(a.titulo)}</span>` : ''}${detalle}</a>
@@ -830,9 +851,15 @@ function vCaso(codigo) {
   }).join('');
   return {
     html: `<div class="pantalla sin-nav">${volver('#/diario', 'Diario')}
-    <div class="item-texto"><h1 class="titulo" style="font-size:30px">Caso ${esc(codigo)}</h1>
+    <div class="item-texto"><h1 class="titulo" style="font-size:30px">Caso ${esc(codigo)}${aliasDe(codigo) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(aliasDe(codigo))}</span>` : ''}${ultima && inicialesTer(S.terapeuta(ultima.terapeutaId)) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(inicialesTer(S.terapeuta(ultima.terapeutaId)))}</span>` : ''}</h1>
     <span class="suave pequeno">${ultima ? 'Terapeuta: ' + esc(S.terapeuta(ultima.terapeutaId)?.nombre || '') + ' · ' : ''}${hechasC.length} sesi${hechasC.length === 1 ? 'ón' : 'ones'}${hechasC[0] ? ' · desde el ' + esc(fmtCorta(hechasC[0].fecha)) : ''}</span></div>
+    <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Alias privado del paciente</label>
+      <div class="dos-col" style="grid-template-columns:1fr auto"><input type="text" id="alias" maxlength="12" value="${esc(aliasDe(codigo))}" placeholder="p. ej. sus iniciales" autocomplete="off"><button class="btn">Guardar</button></div>
+      <span class="mini suave" style="line-height:1.4">${icon('candado', 12)} Solo se guarda en este dispositivo. No va a Drive, ni a Google Calendar, ni a los diarios.</span></form>
     <div class="seccion">${tarjetas}</div></div>`,
+    mount(r) {
+      r.querySelector('#f-alias').addEventListener('submit', (e) => { e.preventDefault(); ponerAlias(codigo, r.querySelector('#alias').value.trim()); toast('Alias guardado en este dispositivo.'); render(); });
+    },
   };
 }
 
@@ -900,7 +927,7 @@ async function generarMensual(mes) {
   const delMes = S.hechas().filter((a) => a.fecha.startsWith(mes)).sort(porFechaHora);
   // De los casos solo se ponen enlaces: la app no lee lo que escribes sobre los pacientes
   const sesiones = delMes.filter(esSesion).map((a) => ({
-    titulo: `${nombreTipo(a)} · Caso ${a.caso || '—'} · ${fmtNum(a.fecha)}`,
+    titulo: `${nombreTipo(a)} · ${casoPub(a)} · ${fmtNum(a.fecha)}`,
     enlace: a.docId ? G.enlaceDoc(a.docId) : null,
   }));
   const ter = (a) => S.terapeuta(a.terapeutaId)?.nombre;
@@ -1007,6 +1034,11 @@ function vAjustes() {
       <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button>
     </div>
 
+    <h2 class="etiqueta-grupo">Alias privados de pacientes</h2>
+    <div class="tarjeta lista">
+      <div class="fila"><span class="item-texto"><span style="font-size:15px">${Object.keys(leerAlias()).length} alias en este dispositivo</span><span class="item-sub">No se sincronizan. Si cambias de móvil o borras la app, descárgalos antes y vuelve a cargarlos.</span></span><span style="display:flex"><button class="btn texto" data-act="alias-descargar">Descargar</button><label class="btn texto" for="in-alias" style="cursor:pointer">Cargar</label><input type="file" id="in-alias" accept=".json,application/json" class="oculto"></span></div>
+    </div>
+
     <h2 class="etiqueta-grupo">Google Calendar</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Enviar mi agenda a Google Calendar</span><span class="item-sub">${aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'La app crea un calendario «Luria Lab» y solo puede tocar ese'}</span></span>${aj.calendarioActivo ? '<button class="btn texto" data-act="cal-off">Desactivar</button>' : '<button class="btn texto" data-act="cal-on">Activar</button>'}</div>
@@ -1024,7 +1056,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.0.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 2.1.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1043,6 +1075,11 @@ function vAjustes() {
           for (let i = 0; i < n; i++) st.actividades.push({ id: S.nuevoId(), tipo: v.tipo, fecha: v.fecha, hora: '', estado: 'hecha', pasada: true, caso: v.tipo === 'tutoria_caso' ? undefined : (v.caso || '').trim() || undefined, formato: v.tipo === 'tutoria_caso' ? 'zoom' : 'presencial', temas: [] });
         });
         toast(`Añadid${n === 1 ? 'a' : 'as'} ${n} · ${TIPOS[v.tipo].nombre.toLowerCase()} del ${fmtNum(v.fecha)}.`); render();
+      });
+      r.querySelector('#in-alias').addEventListener('change', async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        try { const m = JSON.parse(await f.text()); if (typeof m !== 'object' || Array.isArray(m)) throw new Error(); const act = leerAlias(); localStorage.setItem(ALIAS, JSON.stringify({ ...act, ...m })); toast('Alias cargados en este dispositivo.'); render(); }
+        catch { toast('Ese archivo no es una copia de alias de Luria Lab.', { error: true }); }
       });
       r.querySelector('#in-logo').addEventListener('change', async (e) => {
         const f = e.target.files[0]; if (!f) return;
@@ -1135,6 +1172,7 @@ const acciones = {
   'vista-agenda': (b) => { vistaAgenda = b.dataset.v; render(); },
   'ir-dia': (b) => { document.getElementById(`dia-${b.dataset.d}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   'varios-dias': () => modalVariosDias(),
+  'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
   'cal-on': (b) => conCarga(b, async () => {
     await G.conectar({ calendario: true });
     if (!G.tieneCalendario()) throw new Error('Google no dio el permiso de calendario. Vuelve a intentarlo y marca la casilla del calendario.');
@@ -1177,7 +1215,7 @@ const acciones = {
   },
   'plantilla-defecto': () => { S.actualizar((s) => { s.ajustes.plantillaDiarioId = null; s.ajustes.plantillaPropia = false; }); toast('Usarás la plantilla predeterminada.'); render(); },
   copia: () => descargar(new Blob([JSON.stringify(S.datos(), null, 2)], { type: 'application/json' }), `luria-lab-copia-${hoyISO()}.json`),
-  'borrar-local': () => confirmar('¿Cerrar sesión en este dispositivo?', 'Se borrarán los datos guardados en este dispositivo. Si estás conectado con Google, tus registros siguen en tu Drive y volverán al conectar. Si no, descarga antes una copia de seguridad.', 'Cerrar sesión', async () => {
+  'borrar-local': () => confirmar('¿Cerrar sesión en este dispositivo?', 'Se borrarán los datos guardados en este dispositivo, incluidos los alias privados de pacientes (descárgalos antes si los quieres conservar). Si estás conectado con Google, tus registros siguen en tu Drive y volverán al conectar. Si no, descarga antes una copia de seguridad.', 'Cerrar sesión', async () => {
     G.desconectar();
     try { localStorage.clear(); } catch {}
     try { indexedDB.deleteDatabase('luria-lab'); } catch {}
