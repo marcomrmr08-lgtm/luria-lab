@@ -72,6 +72,28 @@ export function rellenarHojaXml(xml, marcadas) {
   return xml;
 }
 
+// Lee una hoja de horas ya rellenada (la que se envió a Luria) y devuelve las actividades marcadas
+export async function leerHoja(buf) {
+  const zip = await Zip.abrir(buf);
+  const hojas = await hojasPorMes(zip);
+  if (!Object.keys(hojas).length) throw new Error('No encuentro pestañas de meses en ese archivo.');
+  const tipoDe = {};
+  for (const [t, cols] of Object.entries(COLUMNAS)) for (const c of cols) tipoDe[c] = t;
+  const acts = [];
+  for (const [mes, ruta] of Object.entries(hojas)) {
+    const xml = await zip.texto(ruta); if (!xml) continue;
+    const m = Number(mes); const anio = m >= 9 ? 2026 : 2027;
+    for (const c of xml.matchAll(/<c r="([B-P])(\d+)"[^>]*?t="b"[^>]*>(?:<f[^>]*\/>|<f[^>]*>[^<]*<\/f>)?<v>(1|TRUE|true)<\/v>/g)) {
+      const fila = Number(c[2]); if (fila < 8 || fila > 38) continue;
+      const dia = fila - 7;
+      if (dia > new Date(anio, m, 0).getDate()) continue;
+      const fecha = `${anio}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+      acts.push({ tipo: tipoDe[c[1]], fecha });
+    }
+  }
+  return acts;
+}
+
 export async function generarHoja(plantilla, actividades, nombre) {
   const zip = await Zip.abrir(plantilla);
   const textos = (await zip.texto('xl/sharedStrings.xml')) || '';

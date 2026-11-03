@@ -3,7 +3,7 @@ import { CONFIG } from './config.js';
 import * as S from './store.js';
 import * as G from './google.js';
 import * as D from './documentos.js';
-import { generarHoja } from './hojaHoras.js';
+import { generarHoja, leerHoja } from './hojaHoras.js';
 import { Zip } from './zip.js';
 import { TIPOS, TIPOS_HOJA, TEMAS, MESES, REVISIONES_PDP } from './calendario.js';
 import { esc, hoyISO, sumarDias, fmtFecha, fmtCorta, fmtNum, nombreMes, toast, abrirModal, cerrarModal, conCarga, idbGet, idbSet, descargar, icon } from './ui.js';
@@ -50,8 +50,8 @@ const primerNombre = () => (S.datos().ajustes.nombre || '').trim().split(/\s+/)[
 
 function titulo(a) {
   if (esSesion(a)) return `${nombreTipo(a)} · Caso ${a.caso || '—'}`;
-  if (a.tipo === 'tutoria_metodologica') return `T. metodológica ${a.numero} · ${a.titulo}`;
-  if (a.tipo === 'seminario') return `Seminario ${a.numero} · ${a.titulo}`;
+  if (a.tipo === 'tutoria_metodologica') return `T. metodológica${a.numero ? ' ' + a.numero : ''} · ${a.titulo}`;
+  if (a.tipo === 'seminario') return `Seminario${a.numero ? ' ' + a.numero : ''} · ${a.titulo}`;
   if (a.tipo === 'tutoria_caso') return 'Tutoría de caso' + (S.terapeuta(a.terapeutaId) ? ` · ${S.terapeuta(a.terapeutaId).nombre}` : '');
   return a.titulo || nombreTipo(a);
 }
@@ -218,6 +218,69 @@ function modalAnadirSesion() {
       const veces = v.semanal ? 8 : 1;
       S.actualizar((s) => { for (let i = 0; i < veces; i++) s.actividades.push({ id: S.nuevoId(), tipo: v.tipo, caso: v.caso.trim(), fecha: sumarDias(v.fecha, 7 * i), hora: v.hora, formato: v.formato, terapeutaId: v.terapeutaId || null, estado: 'programada' }); });
       cerrarModal(); toast(veces > 1 ? `Añadidas ${veces} sesiones.` : 'Sesión añadida a la agenda.'); render();
+    });
+  });
+}
+
+// Crea actividades pasadas a partir de una lista [{tipo, fecha}], sin duplicar lo que ya existe
+function anadirPasadas(lista) {
+  const grupos = new Map();
+  for (const a of lista) { if (!a.tipo) continue; const k = `${a.fecha}|${a.tipo}`; grupos.set(k, (grupos.get(k) || 0) + 1); }
+  const r = { creadas: 0, asistidas: 0, yaEstaban: 0 };
+  S.actualizar((s) => {
+    for (const [k, n] of grupos) {
+      const [fecha, tipo] = k.split('|');
+      const existentes = s.actividades.filter((a) => a.tipo === tipo && a.fecha === fecha && a.estado === 'hecha').length;
+      let faltan = n - existentes;
+      r.yaEstaban += Math.min(n, existentes);
+      if (faltan <= 0) continue;
+      if (tipo === 'tutoria_metodologica' || tipo === 'seminario') {
+        for (const a of s.actividades.filter((x) => x.tipo === tipo && x.fecha === fecha && x.estado !== 'hecha')) {
+          if (faltan <= 0) break; a.estado = 'hecha'; r.asistidas++; faltan--;
+        }
+      }
+      for (let i = 0; i < faltan; i++) {
+        const extra = tipo === 'tutoria_metodologica' || tipo === 'seminario' ? { titulo: `${TIPOS[tipo].nombre} (importada)`, ficha: {}, tarea: {} } : {};
+        s.actividades.push({ id: S.nuevoId(), tipo, fecha, hora: '', estado: 'hecha', pasada: true, formato: tipo === 'tutoria_caso' ? 'zoom' : 'presencial', temas: [], ...extra });
+        r.creadas++;
+      }
+    }
+  });
+  return r;
+}
+
+function modalVariosDias() {
+  let mes = '2026-10';
+  abrirModal(`<h2>Marcar varios días</h2>
+  <form id="f-vd" class="seccion">
+    <div class="dos-col">
+      <div class="campo"><label for="vd-tipo">Actividad</label><select id="vd-tipo" name="tipo">${['tutoria_caso', 'espejo', 'coterapia'].map((t) => `<option value="${t}">${esc(TIPOS[t].nombre)}</option>`).join('')}</select></div>
+      <div class="campo"><label for="vd-mes">Mes</label><select id="vd-mes">${MESES.slice(0, 7).map((m) => `<option value="${m}" ${m === mes ? 'selected' : ''}>${esc(nombreMes(m))}</option>`).join('')}</select></div>
+    </div>
+    <div id="vd-dias" class="dias" role="group" aria-label="Días del mes"></div>
+    <p class="mini suave" style="line-height:1.4">Toca los días en que hiciste esa actividad (una por día). Si un día hiciste dos, añade la segunda con «Un día concreto».</p>
+    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="b-vd">Añadir</button></div>
+  </form>`, (d) => {
+    const pintar = () => {
+      const [y, m] = mes.split('-').map(Number);
+      const nd = new Date(y, m, 0).getDate(); const ini = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+      let h = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((x) => `<span class="dia-cab" aria-hidden="true">${x}</span>`).join('');
+      h += '<span></span>'.repeat(ini);
+      for (let i = 1; i <= nd; i++) h += `<input type="checkbox" id="vd-${i}" name="dia" value="${i}"><label for="vd-${i}">${i}</label>`;
+      d.querySelector('#vd-dias').innerHTML = h;
+      const contar = () => { const n = d.querySelectorAll('#vd-dias input:checked').length; d.querySelector('#b-vd').textContent = n ? `Añadir ${n} día${n === 1 ? '' : 's'}` : 'Añadir'; };
+      d.querySelector('#vd-dias').addEventListener('change', contar); contar();
+    };
+    d.querySelector('#vd-mes').addEventListener('change', (e) => { mes = e.target.value; pintar(); });
+    pintar();
+    d.querySelector('#f-vd').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const tipo = d.querySelector('#vd-tipo').value;
+      const dias = [...d.querySelectorAll('#vd-dias input:checked')].map((x) => Number(x.value));
+      if (!dias.length) { toast('Toca al menos un día.', { error: true }); return; }
+      // Aquí se quiere añadir una por día seleccionado, aunque ya hubiera otra ese día
+      S.actualizar((s) => { for (const dia of dias) s.actividades.push({ id: S.nuevoId(), tipo, fecha: `${mes}-${String(dia).padStart(2, '0')}`, hora: '', estado: 'hecha', pasada: true, formato: tipo === 'tutoria_caso' ? 'zoom' : 'presencial', temas: [] }); });
+      cerrarModal(); toast(`Añadidas ${dias.length} · ${TIPOS[tipo].nombre.toLowerCase()} de ${nombreMes(mes).toLowerCase()}.`); render();
     });
   });
 }
@@ -712,7 +775,11 @@ function vAjustes() {
 
     <h2 class="etiqueta-grupo">Actividades anteriores a la app</h2>
     <div class="tarjeta">
-      <p class="pequeno suave" style="line-height:1.45">Añade, con su día, lo que hiciste antes de usar la app. Así se marcan las casillas correctas en la hoja de horas. Las tutorías metodológicas y los seminarios ya están en la agenda: márcalos como «Asistí» en su ficha.</p>
+      <p class="pequeno suave" style="line-height:1.45">Lo que hiciste antes de usar la app, con su día, para que se marquen las casillas correctas en la hoja de horas.</p>
+      <label class="btn primario" for="in-importar" style="cursor:pointer">${icon('hoja', 18)}Importar las hojas ya enviadas (.xlsx)</label><input type="file" id="in-importar" accept=".xlsx" multiple class="oculto">
+      <span class="mini suave" style="line-height:1.4;margin-top:-4px">Sube los registros de horas que ya mandaste a Luria. La app lee las casillas marcadas y crea las actividades sola (las tutorías metodológicas y los seminarios se marcan como «Asistí»). No duplica lo que ya tengas.</span>
+      <button class="btn" data-act="varios-dias">${icon('calendario', 18)}Marcar varios días en un calendario</button>
+      <p class="etiqueta-grupo" style="margin:6px 0 0">O un día concreto</p>
       <form id="f-prev" class="seccion">
         <div class="dos-col"><div class="campo"><label for="p-fecha">Día</label><input type="date" id="p-fecha" name="fecha" required></div>
         <div class="campo"><label for="p-tipo">Actividad</label><select id="p-tipo" name="tipo">${['espejo', 'coterapia', 'tutoria_caso'].map((t) => `<option value="${t}">${esc(TIPOS[t].nombre)}</option>`).join('')}</select></div></div>
@@ -734,7 +801,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.3.2</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.4.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -753,6 +820,21 @@ function vAjustes() {
           for (let i = 0; i < n; i++) st.actividades.push({ id: S.nuevoId(), tipo: v.tipo, fecha: v.fecha, hora: '', estado: 'hecha', pasada: true, caso: v.tipo === 'tutoria_caso' ? undefined : (v.caso || '').trim() || undefined, formato: v.tipo === 'tutoria_caso' ? 'zoom' : 'presencial', temas: [] });
         });
         toast(`Añadid${n === 1 ? 'a' : 'as'} ${n} · ${TIPOS[v.tipo].nombre.toLowerCase()} del ${fmtNum(v.fecha)}.`); render();
+      });
+      r.querySelector('#in-importar').addEventListener('change', async (e) => {
+        const files = [...e.target.files]; if (!files.length) return;
+        await conCarga(null, async () => {
+          const lista = [];
+          for (const f of files) {
+            try { lista.push(...await leerHoja(await f.arrayBuffer())); }
+            catch (err) { throw new Error(`«${f.name}»: ${err.message}`); }
+          }
+          if (!lista.length) { toast('No he encontrado casillas marcadas en ese archivo. ¿Es la hoja ya rellenada?', { error: true, ms: 9000 }); return; }
+          const res = anadirPasadas(lista);
+          toast(`Importado: ${res.creadas} actividades nuevas${res.asistidas ? `, ${res.asistidas} tutorías/seminarios marcados como «Asistí»` : ''}${res.yaEstaban ? `. ${res.yaEstaban} ya estaban y no se han duplicado` : ''}.`, { ms: 12000 });
+          render();
+        });
+        e.target.value = '';
       });
       const tipoPrev = r.querySelector('#p-tipo');
       const ajustarPrev = () => { r.querySelector('[data-solo-sesion]').hidden = tipoPrev.value === 'tutoria_caso'; };
@@ -819,6 +901,7 @@ const acciones = {
   feedback: (b) => modalFeedback(b.dataset.id),
   'no-enviar': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.noEnviar = !a.noEnviar; }); render(); },
   'add-tc': () => modalAnadirTC(),
+  'varios-dias': () => modalVariosDias(),
   'add-sesion': () => modalAnadirSesion(),
   filtro: (b) => { filtroDiario.tipo = b.dataset.tipo; render(); },
   'descargar-hoja': (b) => conCarga(b, async () => {

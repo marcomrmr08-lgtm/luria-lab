@@ -118,6 +118,12 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .item:focus-visib
 .paso.hecho { color: var(--verde-osc); } .paso.hecho i { background: var(--verde); border-color: var(--verde); color: #fff; }
 .paso.pendiente { color: #7A4A0E; } .paso.pendiente i { border-color: #C7832E; }
 
+.dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.dias input { position: absolute; opacity: 0; pointer-events: none; }
+.dias .dia-cab { text-align: center; font-size: 12px; font-weight: 700; color: var(--suave); }
+.dias label { height: 44px; border-radius: 12px; border: 1px solid var(--linea2); background: var(--superficie); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; cursor: pointer; }
+.dias input:checked + label { background: var(--verde); border-color: var(--verde); color: #fff; }
+.dias input:focus-visible + label { outline: 2px solid var(--verde); outline-offset: 1px; }
 .pregunta { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; }
 .feedback { background: var(--fondo); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
 
