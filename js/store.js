@@ -13,6 +13,7 @@ function porDefecto() {
     ajustes: {
       nombre: '',
       objetivoHoras: 450,
+      tcPrevistas: 28,
       periodo: 'Septiembre 2026 – marzo 2027',
       horas: { espejo: 2, coterapia: 2, tutoria_metodologica: 5, tutoria_caso: 3, seminario: 3, practica_pdp: 0 },
       plantillaDiarioId: null,
@@ -101,6 +102,22 @@ export function conteos(mes) {
   for (const a of hechas()) if (!mes || a.fecha.startsWith(mes)) c[a.tipo] = (c[a.tipo] || 0) + 1;
   for (const p of estado.horasPrevias) if (!mes || p.mes === mes) c[p.tipo] = (c[p.tipo] || 0) + Number(p.sesiones || 0);
   return c;
+}
+
+// Cuántos espejos/coterapias faltan para el objetivo, con un plan fijo:
+// las tutorías metodológicas, seminarios y tutorías de caso previstas ya tienen sus horas
+// reservadas; el resto del objetivo se cubre con sesiones. Así, lo que falta solo baja
+// cuando haces espejos o coterapias (no con tutorías extra).
+export function planSesiones() {
+  const aj = estado.ajustes; const h = aj.horas;
+  const tm = TUTORIAS_METODOLOGICAS.length; const sem = SEMINARIOS.length;
+  const reservadas = tm * Number(h.tutoria_metodologica || 0) + sem * Number(h.seminario || 0) + Number(aj.tcPrevistas || 0) * Number(h.tutoria_caso || 0);
+  const porSesion = Number(h.espejo || h.coterapia || 2) || 2;
+  const necesarias = Math.max(0, Math.ceil((Number(aj.objetivoHoras || 0) - reservadas) / porSesion));
+  const c = conteos();
+  const hechasS = c.espejo + c.coterapia;
+  const planificadas = estado.actividades.filter((a) => (a.tipo === 'espejo' || a.tipo === 'coterapia') && a.estado === 'programada').length;
+  return { necesarias, hechas: hechasS, faltan: Math.max(0, necesarias - hechasS), planificadas, reservadas, porSesion, tm, sem };
 }
 
 export function casos() {

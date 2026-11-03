@@ -101,6 +101,10 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .item:focus-visib
 .barra { height: 10px; border-radius: 5px; background: var(--verde-cl); overflow: hidden; }
 .barra > div { height: 100%; background: var(--verde); border-radius: 5px; }
 .rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.rejilla.tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rejilla.tres .celda b { font-size: 17px; }
+.faltan { display: flex; gap: 12px; align-items: center; background: var(--verde-cl); border-radius: 14px; padding: 12px 14px; }
+.faltan-num { font-size: 32px; font-weight: 800; color: var(--verde-osc); letter-spacing: -0.02em; line-height: 1; min-width: 44px; text-align: center; }
 .celda { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--fondo); border-radius: 12px; }
 .celda b { font-size: 20px; }
 .conteos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }

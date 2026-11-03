@@ -272,6 +272,7 @@ function vInicio() {
   const pend = pendientes();
   const c = S.conteos(); const total = S.totalHoras(); const obj = Number(s.ajustes.objetivoHoras) || 450;
   const tmHechas = c.tutoria_metodologica; const semHechas = c.seminario;
+  const plan = S.planSesiones();
   const banda = G.configurado() && !G.conectado()
     ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>Para crear tus documentos en Drive y tener tus registros en todos tus dispositivos. La app no tiene acceso a tu correo.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
     : !G.configurado() ? `<div class="aviso-caja">${icon('candado', 18)}<span>Modo prueba: tus datos se guardan solo en este dispositivo.</span></div>` : '';
@@ -292,11 +293,18 @@ function vInicio() {
       <div class="fila-entre"><span class="pequeno suave" style="font-weight:600;font-size:14px">Horas de prácticas</span><a href="#/ajustes" class="pequeno" style="font-weight:600">Tu objetivo: ${obj} h · cambiar</a></div>
       <div style="display:flex;align-items:baseline;gap:6px"><span class="horas-num">${total}</span><span class="suave">h computables</span></div>
       <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="${obj}" aria-valuenow="${total}" aria-label="Progreso de horas"><div style="width:${Math.min(100, (total / obj) * 100).toFixed(1)}%"></div></div>
+      <div class="faltan">
+        <span class="faltan-num">${plan.faltan}</span>
+        <span class="item-texto"><span style="font-size:15px;font-weight:700">espejos o coterapias te faltan</span><span class="mini suave" style="line-height:1.4">para llegar a ${obj} h, contando las tutorías y seminarios previstos.${plan.planificadas ? ` Tienes ${plan.planificadas} en la agenda.` : ''}</span></span>
+      </div>
       <div class="rejilla">
-        <div class="celda"><b>${c.espejo + c.coterapia}</b><span class="mini suave">Espejos y coterapias</span></div>
-        <div class="celda"><b>${c.tutoria_caso}</b><span class="mini suave">Tutorías de caso</span></div>
-        <div class="celda"><b>${tmHechas} / 13</b><span class="mini suave">Tutorías metodológicas</span></div>
-        <div class="celda"><b>${semHechas} / 4</b><span class="mini suave">Seminarios</span></div>
+        <div class="celda"><b>${c.espejo}</b><span class="mini suave">Espejos</span></div>
+        <div class="celda"><b>${c.coterapia}</b><span class="mini suave">Coterapias</span></div>
+      </div>
+      <div class="rejilla tres">
+        <div class="celda"><b>${c.tutoria_caso} / ${s.ajustes.tcPrevistas}</b><span class="mini suave">Tutorías de caso</span></div>
+        <div class="celda"><b>${tmHechas} / ${plan.tm}</b><span class="mini suave">Tutorías metodológicas</span></div>
+        <div class="celda"><b>${semHechas} / ${plan.sem}</b><span class="mini suave">Seminarios</span></div>
       </div>
     </section>
     </div>${fab()}${nav('inicio')}`,
@@ -686,6 +694,8 @@ function vAjustes() {
         <div class="campo"><label for="a-nombre">Nombre y apellidos</label><input type="text" id="a-nombre" name="nombre" value="${esc(aj.nombre)}" placeholder="Aparece en la hoja de horas"></div>
         <div class="dos-col"><div class="campo"><label for="a-obj">Objetivo de horas</label><input type="number" id="a-obj" name="objetivoHoras" min="1" value="${esc(aj.objetivoHoras)}"></div>
         <div class="campo"><label for="a-per">Periodo</label><input type="text" id="a-per" name="periodo" value="${esc(aj.periodo)}"></div></div>
+        <div class="campo"><label for="a-tc">Tutorías de caso previstas en total</label><input type="number" id="a-tc" name="tcPrevistas" min="0" value="${esc(aj.tcPrevistas)}">
+          <span class="ayuda">Unas 7 al mes de octubre a enero = 28. Se usa para calcular cuántos espejos o coterapias te faltan.</span></div>
       </div>
       <h2 class="etiqueta-grupo">Horas computables por actividad</h2>
       <div class="tarjeta lista">${horasCampo('espejo', 'Espejo')}${horasCampo('coterapia', 'Coterapia')}${horasCampo('tutoria_metodologica', 'Tutoría metodológica')}${horasCampo('tutoria_caso', 'Tutoría de caso')}${horasCampo('seminario', 'Seminario')}</div>
@@ -729,7 +739,7 @@ function vAjustes() {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
         S.actualizar((st) => {
-          Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim() });
+          Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim(), tcPrevistas: Math.max(0, Number(v.tcPrevistas) || 0) });
           for (const t of TIPOS_HOJA) st.ajustes.horas[t] = Number(v[`h_${t}`]) || 0;
         });
         toast('Ajustes guardados.');
