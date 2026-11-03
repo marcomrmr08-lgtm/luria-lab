@@ -4,10 +4,10 @@
 // las funciones de Google (Docs, Drive, Gmail) quedan desactivadas.
 export const CONFIG = {
   CLIENT_ID: '632485670315-44h0reldorhd0pc09qvivhc9qdj3cdhv.apps.googleusercontent.com',
+  // Sin acceso al correo: la app nunca envía ni lee emails.
   SCOPES: [
     'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/drive.appdata',
-    'https://www.googleapis.com/auth/gmail.send',
   ].join(' '),
   ARCHIVO_DATOS: 'luria-lab-datos.json',
   CARPETA_RAIZ: 'Luria Lab',

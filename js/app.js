@@ -29,12 +29,12 @@ async function subir() {
 async function conectarYSincronizar() {
   await G.conectar();
   const remoto = await G.leerDatos();
-  if (remoto && (remoto.updatedAt || 0) > (S.datos().updatedAt || 0)) {
-    S.reemplazar(remoto);
-    toast('Datos sincronizados desde tu Drive.');
-  } else {
-    await G.escribirDatos(S.datos());
-  }
+  const remotoMasNuevo = remoto && (remoto.updatedAt || 0) > (S.datos().updatedAt || 0);
+  if (remotoMasNuevo) { S.reemplazar(remoto); toast('Datos sincronizados desde tu Drive.'); }
+  // Una sola vez: rehace el archivo de Drive para que no quede ninguna versión antigua con correos
+  let limpio = false; try { limpio = localStorage.getItem('ll-limpieza-correos') === '1'; } catch {}
+  if (!limpio) { await G.recrearDatos(S.datos()); try { localStorage.setItem('ll-limpieza-correos', '1'); } catch {} }
+  else if (!remotoMasNuevo) await G.escribirDatos(S.datos());
 }
 async function google() {
   if (!G.configurado()) throw new Error('La conexión con Google aún no está configurada.');
@@ -137,31 +137,23 @@ async function abrirNotas(boton, id) {
 function modalTerapeuta(t, alGuardar) {
   abrirModal(`<h2>${t ? 'Editar terapeuta' : 'Añadir terapeuta'}</h2>
   <form id="f-ter" class="seccion">
-    <div class="campo"><label for="t-nombre">Nombre</label><input type="text" id="t-nombre" name="nombre" required value="${esc(t?.nombre)}"></div>
-    <div class="campo"><label for="t-email">Correo</label><input type="email" id="t-email" name="email" value="${esc(t?.email)}" placeholder="Para enviarle tus diarios críticos"></div>
+    <div class="campo"><label for="t-nombre">Nombre</label><input type="text" id="t-nombre" name="nombre" required value="${esc(t?.nombre)}"><span class="ayuda">Solo el nombre, para agrupar tus sesiones. La app no guarda correos.</span></div>
     <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
   </form>`, (d) => {
     d.querySelector('#f-ter').addEventListener('submit', (e) => {
       e.preventDefault(); const v = leerForm(e.target);
       let ter = t;
-      S.actualizar((s) => { if (ter) Object.assign(ter, { nombre: v.nombre.trim(), email: v.email.trim() }); else { ter = { id: S.nuevoId(), nombre: v.nombre.trim(), email: v.email.trim() }; s.terapeutas.push(ter); } });
+      S.actualizar((s) => { if (ter) Object.assign(ter, { nombre: v.nombre.trim() }); else { ter = { id: S.nuevoId(), nombre: v.nombre.trim() }; s.terapeutas.push(ter); } });
       cerrarModal(); alGuardar?.(ter);
     });
   });
 }
 
 function modalNoAsistir(id) {
-  const a = S.actividad(id); const s = S.datos();
-  const t = S.terapeuta(a.terapeutaId);
-  const asunto = `No podré asistir · ${titulo(a)} · ${fmtNum(a.fecha)}`;
-  const cuerpo = `Hola${t ? ' ' + t.nombre : ''},\n\nTe escribo para avisarte de que no podré asistir a la sesión del ${fmtFecha(a.fecha)}${a.hora ? ' a las ' + a.hora : ''} (caso ${a.caso || ''}).\n\nDisculpa las molestias.\n\nUn saludo,\n${s.ajustes.nombre || ''}`;
-  const para = [t?.email].filter(Boolean).join(',');
-  const cc = s.ajustes.correoPracticas;
-  const mailto = `mailto:${encodeURIComponent(para)}?${cc ? 'cc=' + encodeURIComponent(cc) + '&' : ''}subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+  const a = S.actividad(id);
   abrirModal(`<h2>No puedo asistir</h2>
-  <p class="suave pequeno" style="line-height:1.45">Luria pide avisar por correo al terapeuta y a la responsable de prácticas.${!t?.email ? ' Falta el correo del terapeuta: añádelo en Ajustes › Mis terapeutas.' : ''}${!cc ? ' Falta el correo de la responsable de prácticas (Ajustes › Correos de Luria).' : ''}</p>
-  <a class="btn primario grande" href="${esc(mailto)}">${icon('correo', 20)}Escribir el correo</a>
-  <button class="btn grande" id="b-cancelar-act">Quitar de la agenda (no asistí)</button>
+  <div class="aviso-caja">${icon('correo', 18)}<span>Recuerda avisar desde tu correo al terapeuta y a la responsable de prácticas, como pide Luria. La app no envía nada.</span></div>
+  <button class="btn primario grande" id="b-cancelar-act">Quitar de la agenda (no asistí)</button>
   <button class="btn texto" data-cerrar>Cerrar</button>`, (d) => {
     d.querySelector('#b-cancelar-act').addEventListener('click', () => {
       S.actualizar(() => { a.estado = 'cancelada'; }); cerrarModal(); toast('Quitada de la agenda.'); render();
@@ -169,28 +161,12 @@ function modalNoAsistir(id) {
   });
 }
 
-function modalEnviarPdf(id) {
-  const a = S.actividad(id); const s = S.datos();
-  const t = S.terapeuta(a.terapeutaId);
-  const texto = `Hola${t ? ' ' + t.nombre : ''},\n\nTe envío mi diario crítico de la sesión del ${fmtNum(a.fecha)} (caso ${a.caso}). Si tienes un momento, me ayudaría mucho tu feedback.\n\nGracias,\n${s.ajustes.nombre || ''}`;
-  abrirModal(`<h2>Enviar diario crítico</h2>
-  <form id="f-env" class="seccion">
-    <div class="campo"><label for="e-para">Para</label><input type="email" id="e-para" name="para" required value="${esc(t?.email)}" placeholder="correo del terapeuta"></div>
-    <div class="campo"><label for="e-asunto">Asunto</label><input type="text" id="e-asunto" name="asunto" value="${esc(`Diario crítico · Caso ${a.caso} · Sesión ${S.numeroSesion(a)} (${fmtNum(a.fecha)})`)}"></div>
-    <div class="campo"><label for="e-texto">Mensaje</label><textarea id="e-texto" name="texto" rows="7">${esc(texto)}</textarea></div>
-    <div class="aviso-caja">${icon('candado', 18)}<span>Se adjunta el diario en PDF. Antes de enviarlo, revisa que no incluya datos que identifiquen al paciente.</span></div>
-    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="b-env">Enviar</button></div>
-  </form>`, (d) => {
-    d.querySelector('#f-env').addEventListener('submit', (e) => {
-      e.preventDefault(); const v = leerForm(e.target);
-      conCarga(d.querySelector('#b-env'), async () => {
-        await google();
-        const pdf = await G.exportarPdf(a.docId);
-        await G.enviarCorreo({ para: v.para, asunto: v.asunto, texto: v.texto, adjuntos: [{ nombre: `Diario critico - Caso ${a.caso} - ${fmtNum(a.fecha).replaceAll('/', '-')}.pdf`, tipo: 'application/pdf', blob: pdf }] });
-        S.actualizar(() => { a.enviado = true; a.enviadoEn = hoyISO(); if (t && !t.email) t.email = v.para; });
-        cerrarModal(); toast('Diario crítico enviado.'); render();
-      });
-    });
+// La app nunca envía correos: descarga el PDF y el alumno lo envía desde su correo
+async function descargarPdf(boton, docId, nombre) {
+  await conCarga(boton, async () => {
+    await google();
+    descargar(await G.exportarPdf(docId), nombre);
+    toast('PDF descargado. Envíalo desde tu correo y márcalo como enviado.', { ms: 8000 });
   });
 }
 
@@ -287,7 +263,7 @@ function pendientes() {
   for (const a of s.actividades.filter((x) => x.estado === 'programada' && x.fecha < hoy && x.fecha >= sumarDias(hoy, -45)).sort(porFechaHora)) {
     lista.push({ ic: 'reloj', c: 'ambar', t: `¿Completas ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' ? 'la ficha de ' : ''}${titulo(a)}?`, s: fmtFecha(a.fecha) + ' · sin registrar', h: rutaForm(a) });
   }
-  for (const a of S.hechas().filter(esSesion)) {
+  for (const a of S.hechas().filter((x) => esSesion(x) && !x.pasada && x.caso)) {
     if (!a.docId) lista.push({ ic: 'doc', c: 'ambar', t: 'Crear diario crítico', s: `Caso ${a.caso} · ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
     else if (!a.enviado && !a.noEnviar) lista.push({ ic: 'correo', c: 'ambar', t: 'Enviar diario crítico al terapeuta', s: `Caso ${a.caso} · ${nombreTipo(a).toLowerCase()} del ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
   }
@@ -309,7 +285,7 @@ function vInicio() {
   const c = S.conteos(); const total = S.totalHoras(); const obj = Number(s.ajustes.objetivoHoras) || 450;
   const tmHechas = c.tutoria_metodologica; const semHechas = c.seminario;
   const banda = G.configurado() && !G.conectado()
-    ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>Para crear tus documentos en Drive, enviar correos y tener tus registros en todos tus dispositivos.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
+    ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>Para crear tus documentos en Drive y tener tus registros en todos tus dispositivos. La app no tiene acceso a tu correo.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
     : !G.configurado() ? `<div class="aviso-caja">${icon('candado', 18)}<span>Modo prueba: tus datos se guardan solo en este dispositivo.</span></div>` : '';
   const empezar = !s.ajustes.nombre || !s.ajustes.plantillaHorasNombre
     ? `<a href="#/ajustes" class="item">${'<span class="icono-caja bg-verde">' + icon('ajustes', 20) + '</span>'}<span class="item-texto"><span class="item-titulo">Termina de configurar la app</span><span class="item-sub">${!s.ajustes.nombre ? 'Tu nombre' : ''}${!s.ajustes.nombre && !s.ajustes.plantillaHorasNombre ? ' y ' : ''}${!s.ajustes.plantillaHorasNombre ? 'la plantilla de horas de Luria' : ''}</span></span></a>` : '';
@@ -509,7 +485,7 @@ function vFicha(id) {
       ${campo('dudas', 'Dudas para preguntar', 'Toca para añadir', 2)}
       ${tm ? `<section class="tarjeta"><div class="fila-entre"><span class="tipo c-morado" style="font-size:13px">Tarea de la tutoría</span>${t.enviada ? '<span class="insignia ok">Enviada</span>' : t.docId ? '<span class="insignia aviso">Sin enviar</span>' : ''}</div>
         <textarea name="tareaTexto" rows="2" placeholder="Qué pidió el profesor y para cuándo" style="border:0;padding:0">${esc(t.texto)}</textarea>
-        <div class="botones">${t.docId ? `<a class="btn" href="${G.enlaceDoc(t.docId)}" target="_blank" rel="noopener">Abrir Doc</a><button type="button" class="btn primario" id="b-env-tarea">Enviar al profesor</button>` : `<button type="button" class="btn" id="b-crear-tarea" style="grid-column:span 2">${icon('doc', 16)}Crear Doc de la tarea</button>`}</div>
+        <div class="botones">${t.docId ? `<a class="btn" href="${G.enlaceDoc(t.docId)}" target="_blank" rel="noopener">Abrir Doc</a><button type="button" class="btn" id="b-pdf-tarea">${icon('descargar', 16)}Descargar PDF</button>` : `<button type="button" class="btn" id="b-crear-tarea" style="grid-column:span 2">${icon('doc', 16)}Crear Doc de la tarea</button>`}</div>
         <label class="pequeno" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="tareaEnviada" value="1" ${t.enviada ? 'checked' : ''}> Ya la he enviado</label></section>` : ''}
       <button class="btn primario grande">Guardar</button>
     </form></div>`,
@@ -530,32 +506,9 @@ function vFicha(id) {
         S.actualizar(() => { a.tarea.docId = doc; });
         toast('Doc de la tarea creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render();
       }));
-      r.querySelector('#b-env-tarea')?.addEventListener('click', () => { guardarFicha(); modalEnviarTarea(a.id); });
+      r.querySelector('#b-pdf-tarea')?.addEventListener('click', (e) => { guardarFicha(); descargarPdf(e.currentTarget, a.tarea.docId, `Tarea TM ${a.numero}.pdf`); });
     },
   };
-}
-
-function modalEnviarTarea(id) {
-  const a = S.actividad(id); const s = S.datos();
-  abrirModal(`<h2>Enviar la tarea</h2>
-  <form id="f-tar" class="seccion">
-    <div class="campo"><label for="t-para">Para (profesor)</label><input type="email" id="t-para" name="para" required value="${esc(a.tarea?.para)}"></div>
-    <div class="campo"><label for="t-asunto">Asunto</label><input type="text" id="t-asunto" name="asunto" value="${esc(`Tarea · Tutoría metodológica ${a.numero} · ${s.ajustes.nombre || ''}`)}"></div>
-    <div class="campo"><label for="t-texto">Mensaje</label><textarea id="t-texto" name="texto" rows="5">${esc(`Hola,\n\nTe envío la tarea de la tutoría metodológica «${a.titulo}».\n\nUn saludo,\n${s.ajustes.nombre || ''}`)}</textarea></div>
-    <p class="mini suave">Se adjunta el Doc de la tarea en PDF.</p>
-    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="b-tar">Enviar</button></div>
-  </form>`, (d) => {
-    d.querySelector('#f-tar').addEventListener('submit', (e) => {
-      e.preventDefault(); const v = leerForm(e.target);
-      conCarga(d.querySelector('#b-tar'), async () => {
-        await google();
-        const pdf = await G.exportarPdf(a.tarea.docId);
-        await G.enviarCorreo({ para: v.para, asunto: v.asunto, texto: v.texto, adjuntos: [{ nombre: `Tarea TM ${a.numero}.pdf`, tipo: 'application/pdf', blob: pdf }] });
-        S.actualizar(() => { a.tarea.enviada = true; a.tarea.para = v.para; });
-        cerrarModal(); toast('Tarea enviada.'); render();
-      });
-    });
-  });
 }
 
 // ---------- Práctica del PDP ----------
@@ -601,7 +554,8 @@ function vDiario() {
     const m = a.fecha.slice(0, 7);
     if (m !== mes) { mes = m; html += `<h2 class="etiqueta-grupo">${esc(nombreMes(m))}</h2>`; }
     let detalle = '';
-    if (esSesion(a)) detalle = `<span class="insignias">${!a.docId ? '<span class="insignia aviso">Sin diario crítico</span>' : a.enviado ? '<span class="insignia ok">Enviado</span>' : a.noEnviar ? '<span class="insignia">No se envía</span>' : '<span class="insignia aviso">Sin enviar al terapeuta</span>'}${a.feedback?.length ? '<span class="insignia ok">Feedback recibido</span>' : ''}</span>`;
+    if (esSesion(a) && a.pasada && !a.docId) detalle = '<span class="insignias"><span class="insignia">Anterior a la app</span></span>';
+    else if (esSesion(a)) detalle = `<span class="insignias">${!a.docId ? '<span class="insignia aviso">Sin diario crítico</span>' : a.enviado ? '<span class="insignia ok">Enviado</span>' : a.noEnviar ? '<span class="insignia">No se envía</span>' : '<span class="insignia aviso">Sin enviar al terapeuta</span>'}${a.feedback?.length ? '<span class="insignia ok">Feedback recibido</span>' : ''}</span>`;
     else if (a.tipo === 'tutoria_caso') detalle = `<span class="texto-largo" style="font-size:14px;color:#2A332E">${a.aprendizaje ? '«' + esc(a.aprendizaje.slice(0, 160)) + (a.aprendizaje.length > 160 ? '…' : '') + '»' : '<span class="suave">Sin aprendizaje anotado</span>'}</span>${a.temas?.length ? `<span class="insignias">${a.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}`;
     else if (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') {
       const n = ['idea', 'guia', 'aplica', 'dudas'].filter((k) => a.ficha?.[k]).length;
@@ -637,9 +591,9 @@ function vCaso(codigo) {
     const paso = (ok, pend, t) => `<span class="paso ${ok ? 'hecho' : pend ? 'pendiente' : ''}"><i>${ok ? icon('check', 14) : ''}</i>${t}</span>`;
     const botones = !a.docId
       ? `<button class="btn primario" data-act="crear-diario" data-id="${esc(a.id)}" style="grid-column:span 2">${icon('doc', 16)}Crear diario crítico</button>`
-      : `<a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir Doc</a>${!a.enviado
-        ? `<button class="btn primario" data-act="enviar-pdf" data-id="${esc(a.id)}">${icon('correo', 16)}Enviar PDF</button>`
-        : `<button class="btn primario" data-act="feedback" data-id="${esc(a.id)}">Añadir feedback</button>`}`;
+      : `<a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir Doc</a><button class="btn" data-act="pdf-diario" data-id="${esc(a.id)}">${icon('descargar', 16)}Descargar PDF</button>${a.noEnviar ? '' : !a.enviado
+        ? `<button class="btn primario" data-act="marcar-enviado" data-id="${esc(a.id)}" style="grid-column:span 2">${icon('check', 16)}Ya lo he enviado</button>`
+        : `<button class="btn primario" data-act="feedback" data-id="${esc(a.id)}" style="grid-column:span 2">Añadir feedback</button>`}`;
     return `<div class="tarjeta">
       <div class="fila-entre"><span style="font-size:15px;font-weight:700">Sesión ${n} · ${esc(nombreTipo(a))}</span><span class="pequeno suave">${esc(fmtCorta(a.fecha))}</span></div>
       ${a.noEnviar ? '<span class="insignias"><span class="insignia">No se envía al terapeuta</span></span>' : `<div class="pasos">${paso(a.docId, !a.docId, 'Diario')}${paso(a.enviado, a.docId && !a.enviado, 'Enviado')}${paso(a.feedback?.length, a.enviado && !a.feedback?.length, 'Feedback')}</div>`}
@@ -719,47 +673,18 @@ function vExportar(params) {
         <span class="celda"><b>${c.seminario}</b><span>Seminario</span></span>
       </div>
       ${!s.ajustes.plantillaHorasNombre ? `<div class="aviso-caja">${icon('hoja', 18)}<span>Para generar la hoja, sube primero la plantilla de Luria en <a href="#/ajustes" style="font-weight:700">Ajustes</a>.</span></div>` : ''}
-      <div class="botones"><button class="btn" data-act="descargar-hoja">${icon('descargar', 16)}Descargar</button><button class="btn primario" data-act="enviar-luria" data-mes="${mes}">${icon('correo', 16)}Enviar a Luria</button></div>
-      <span class="mini suave" style="line-height:1.4">El archivo incluye todos los meses con lo que has registrado. Se envía junto con tu diario crítico del mes, en un correo que revisas antes de enviar.${inf.enviado ? ` <b>Enviado el ${esc(fmtNum(inf.enviado))}.</b>` : ''}</span>
+      <button class="btn primario" data-act="descargar-hoja">${icon('descargar', 16)}Descargar hoja de horas (.xlsx)</button>
+      <span class="mini suave" style="line-height:1.4">El archivo incluye todos los meses con lo que has registrado. Envíalo desde tu correo junto con el diario crítico del mes.</span>
+      ${inf.enviado ? `<div class="fila-entre"><span class="insignia ok">${icon('check', 14)}&nbsp;Enviado a Luria el ${esc(fmtNum(inf.enviado))}</span><button class="btn texto pequeno" data-act="marcar-luria" data-mes="${mes}">Desmarcar</button></div>` : `<button class="btn" data-act="marcar-luria" data-mes="${mes}">${icon('check', 16)}Ya lo he enviado a Luria</button>`}
     </section>
     <section class="tarjeta">
       <span class="item-texto"><span style="font-size:16px;font-weight:700">Diario crítico del mes</span><span class="item-sub" style="line-height:1.4">Compila todas tus actividades, ordenadas por tipo, con preguntas guía para que escribas tu síntesis.</span></span>
       <div class="insignias"><span class="insignia ok">${n('espejo') + n('coterapia')} espejos y coterapias</span><span class="insignia" style="background:var(--azul-cl);color:#234A70">${n('tutoria_caso')} T. de caso</span><span class="insignia" style="background:var(--morado-cl);color:#4F3570">${n('tutoria_metodologica')} T. metodológicas</span><span class="insignia aviso">${n('seminario')} seminarios</span><span class="insignia">${n('practica_pdp')} prácticas PDP</span></div>
-      ${inf.docId ? `<div class="botones"><a class="btn primario" href="${G.enlaceDoc(inf.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir borrador</a><button class="btn" data-act="mensual" data-mes="${mes}">Volver a generar</button></div><span class="mini suave">Generado el ${esc(fmtNum(inf.generado))}. Si vuelves a generarlo se crea un documento nuevo.</span>`
+      ${inf.docId ? `<div class="botones"><a class="btn primario" href="${G.enlaceDoc(inf.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir borrador</a><button class="btn" data-act="pdf-mensual" data-mes="${mes}">${icon('descargar', 16)}Descargar PDF</button></div><button class="btn texto pequeno" data-act="mensual" data-mes="${mes}">Volver a generar</button><span class="mini suave">Generado el ${esc(fmtNum(inf.generado))}. Si vuelves a generarlo se crea un documento nuevo.</span>`
         : `<button class="btn" data-act="mensual" data-mes="${mes}">${icon('doc', 16)}Generar borrador en Google Docs</button>`}
     </section></div>`,
     mount(r) { r.querySelector('#mes').addEventListener('change', (e) => irA(`#/exportar?mes=${e.target.value}`)); },
   };
-}
-
-function modalEnviarLuria(mes) {
-  const s = S.datos(); const inf = s.informes[mes] || {};
-  const mesTxt = nombreMes(mes);
-  if (!inf.docId) toast('Aún no has generado el diario crítico de este mes: solo se adjuntará la hoja de horas.', { ms: 8000 });
-  abrirModal(`<h2>Enviar a Luria</h2>
-  <form id="f-lu" class="seccion">
-    <div class="campo"><label for="l-para">Para</label><input type="email" id="l-para" name="para" required value="${esc(s.ajustes.correoFormacion)}" placeholder="Responsable de formación"></div>
-    <div class="campo"><label for="l-cc">CC</label><input type="email" id="l-cc" name="cc" value="${esc(s.ajustes.correoPracticas !== s.ajustes.correoFormacion ? s.ajustes.correoPracticas : '')}" placeholder="Responsable de prácticas (opcional)"></div>
-    <div class="campo"><label for="l-asunto">Asunto</label><input type="text" id="l-asunto" name="asunto" value="${esc(`Registro de horas y diario crítico · ${mesTxt}${s.ajustes.nombre ? ' · ' + s.ajustes.nombre : ''}`)}"></div>
-    <div class="campo"><label for="l-texto">Mensaje</label><textarea id="l-texto" name="texto" rows="6">${esc(`Hola,\n\nOs envío mi registro de horas${inf.docId ? ' y mi diario crítico' : ''} de ${mesTxt.toLowerCase()}.\n\nUn saludo,\n${s.ajustes.nombre || ''}`)}</textarea></div>
-    <div class="campo"><span class="etiqueta">Adjuntos</span>
-      <label class="pequeno" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="hoja" value="1" checked> Hoja de horas (.xlsx)</label>
-      <label class="pequeno" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="diario" value="1" ${inf.docId ? 'checked' : 'disabled'}> Diario crítico del mes (PDF)${inf.docId ? '' : ' · genera el borrador primero'}</label></div>
-    <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="b-lu">Enviar</button></div>
-  </form>`, (d) => {
-    d.querySelector('#f-lu').addEventListener('submit', (e) => {
-      e.preventDefault(); const v = leerForm(e.target);
-      conCarga(d.querySelector('#b-lu'), async () => {
-        await google();
-        const adj = [];
-        if (v.hoja) { const { blob, avisos } = await hojaBlob(); if (avisos.length) toast(avisos.join(' '), { ms: 12000 }); adj.push({ nombre: `Registro horas - ${s.ajustes.nombre || 'alumno'} - ${mesTxt}.xlsx`, tipo: blob.type, blob }); }
-        if (v.diario && inf.docId) adj.push({ nombre: `Diario critico - ${mesTxt}.pdf`, tipo: 'application/pdf', blob: await G.exportarPdf(inf.docId) });
-        await G.enviarCorreo({ para: v.para, cc: v.cc, asunto: v.asunto, texto: v.texto, adjuntos: adj });
-        S.actualizar((st) => { st.informes[mes] = { ...(st.informes[mes] || {}), enviado: hoyISO() }; if (!st.ajustes.correoFormacion) st.ajustes.correoFormacion = v.para; });
-        cerrarModal(); toast('Enviado a Luria.'); render();
-      });
-    });
-  });
 }
 
 // ---------- Ajustes ----------
@@ -777,11 +702,6 @@ function vAjustes() {
       </div>
       <h2 class="etiqueta-grupo">Horas computables por actividad</h2>
       <div class="tarjeta lista">${horasCampo('espejo', 'Espejo')}${horasCampo('coterapia', 'Coterapia')}${horasCampo('tutoria_metodologica', 'Tutoría metodológica')}${horasCampo('tutoria_caso', 'Tutoría de caso')}${horasCampo('seminario', 'Seminario')}</div>
-      <h2 class="etiqueta-grupo">Correos de Luria</h2>
-      <div class="tarjeta">
-        <div class="campo"><label for="a-cf">Responsable de formación</label><input type="email" id="a-cf" name="correoFormacion" value="${esc(aj.correoFormacion)}" placeholder="Recibe el registro de horas"></div>
-        <div class="campo"><label for="a-cp">Responsable de prácticas</label><input type="email" id="a-cp" name="correoPracticas" value="${esc(aj.correoPracticas)}" placeholder="Para avisos de ausencia y diario crítico"></div>
-      </div>
       <button class="btn primario grande">Guardar cambios</button>
     </form>
 
@@ -792,25 +712,27 @@ function vAjustes() {
     </div>
     <p class="mini suave" style="line-height:1.45;margin-top:-6px">Si subes tu propia plantilla del diario, la app rellena estas marcas donde las pongas: {{CASO}}, {{CODIGO}}, {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p>
 
-    <h2 class="etiqueta-grupo">Horas de meses anteriores</h2>
+    <h2 class="etiqueta-grupo">Actividades anteriores a la app</h2>
     <div class="tarjeta">
-      ${s.horasPrevias.length ? `<div class="tarjeta lista" style="border:0">${s.horasPrevias.map((p, i) => `<div class="fila"><span>${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} sesión${p.sesiones == 1 ? '' : 'es'}</span><button class="btn texto" data-act="quitar-previa" data-i="${i}" aria-label="Quitar">${icon('papelera', 18)}</button></div>`).join('')}</div>` : '<p class="pequeno suave">Añade aquí lo que ya registraste en la hoja antes de usar la app.</p>'}
+      <p class="pequeno suave" style="line-height:1.45">Añade, con su día, lo que hiciste antes de usar la app. Así se marcan las casillas correctas en la hoja de horas. Las tutorías metodológicas y los seminarios ya están en la agenda: márcalos como «Asistí» en su ficha.</p>
       <form id="f-prev" class="seccion">
-        <div class="dos-col"><div class="campo"><label for="p-mes">Mes</label><select id="p-mes" name="mes">${MESES.map((m) => `<option value="${m}">${esc(nombreMes(m))}</option>`).join('')}</select></div>
-        <div class="campo"><label for="p-tipo">Actividad</label><select id="p-tipo" name="tipo">${TIPOS_HOJA.map((t) => `<option value="${t}">${esc(TIPOS[t].nombre)}</option>`).join('')}</select></div></div>
-        <div class="dos-col" style="align-items:end"><div class="campo"><label for="p-n">Nº de sesiones</label><input type="number" id="p-n" name="sesiones" min="1" value="1"></div><button class="btn">Añadir</button></div>
+        <div class="dos-col"><div class="campo"><label for="p-fecha">Día</label><input type="date" id="p-fecha" name="fecha" required></div>
+        <div class="campo"><label for="p-tipo">Actividad</label><select id="p-tipo" name="tipo">${['espejo', 'coterapia', 'tutoria_caso'].map((t) => `<option value="${t}">${esc(TIPOS[t].nombre)}</option>`).join('')}</select></div></div>
+        <div class="campo" data-solo-sesion><label for="p-caso">Código de caso <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="p-caso" name="caso" list="l-casos-p"><datalist id="l-casos-p">${[...S.casos().keys()].map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
+        <div class="dos-col" style="align-items:end"><div class="campo"><label for="p-n">Cuántas ese día</label><input type="number" id="p-n" name="cantidad" min="1" max="8" value="1"></div><button class="btn">Añadir</button></div>
       </form>
+      ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales sin día añadidos antes (cuentan en tus horas pero no se marcan en la hoja): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
     </div>
 
     <h2 class="etiqueta-grupo">Mis terapeutas</h2>
     <div class="tarjeta lista">
-      ${s.terapeutas.map((t) => `<button class="fila" data-act="editar-ter" data-id="${esc(t.id)}"><span class="item-texto"><span style="font-size:15px">${esc(t.nombre)}</span><span class="item-sub">${esc(t.email || 'sin correo')}</span></span>${icon('sig', 18)}</button>`).join('')}
+      ${s.terapeutas.map((t) => `<button class="fila" data-act="editar-ter" data-id="${esc(t.id)}"><span class="item-texto"><span style="font-size:15px">${esc(t.nombre)}</span></span>${icon('sig', 18)}</button>`).join('')}
       <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button>
     </div>
 
     <h2 class="etiqueta-grupo">Cuenta</h2>
     <div class="tarjeta lista">
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Cuenta de Google</span><span class="item-sub">${!G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · Drive, Docs y Gmail' : 'Sin conectar'}</span></span>${G.configurado() ? (G.conectado() ? '<button class="btn texto" data-act="desconectar">Desconectar</button>' : '<button class="btn texto" data-act="conectar">Conectar</button>') : ''}</div>
+      <div class="fila"><span class="item-texto"><span style="font-size:15px">Cuenta de Google</span><span class="item-sub">${!G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · solo Drive y Docs, sin acceso al correo' : 'Sin conectar'}</span></span>${G.configurado() ? (G.conectado() ? '<button class="btn texto" data-act="desconectar">Desconectar</button>' : '<button class="btn texto" data-act="conectar">Conectar</button>') : ''}</div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
@@ -820,15 +742,23 @@ function vAjustes() {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
         S.actualizar((st) => {
-          Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim(), correoFormacion: v.correoFormacion.trim(), correoPracticas: v.correoPracticas.trim() });
+          Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim() });
           for (const t of TIPOS_HOJA) st.ajustes.horas[t] = Number(v[`h_${t}`]) || 0;
         });
         toast('Ajustes guardados.');
       });
       r.querySelector('#f-prev').addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
-        S.actualizar((st) => { st.horasPrevias.push({ mes: v.mes, tipo: v.tipo, sesiones: Number(v.sesiones) || 1 }); }); render();
+        if (!v.fecha) return;
+        const n = Math.max(1, Math.min(8, Number(v.cantidad) || 1));
+        S.actualizar((st) => {
+          for (let i = 0; i < n; i++) st.actividades.push({ id: S.nuevoId(), tipo: v.tipo, fecha: v.fecha, hora: '', estado: 'hecha', pasada: true, caso: v.tipo === 'tutoria_caso' ? undefined : (v.caso || '').trim() || undefined, formato: v.tipo === 'tutoria_caso' ? 'zoom' : 'presencial', temas: [] });
+        });
+        toast(`Añadid${n === 1 ? 'a' : 'as'} ${n} · ${TIPOS[v.tipo].nombre.toLowerCase()} del ${fmtNum(v.fecha)}.`); render();
       });
+      const tipoPrev = r.querySelector('#p-tipo');
+      const ajustarPrev = () => { r.querySelector('[data-solo-sesion]').hidden = tipoPrev.value === 'tutoria_caso'; };
+      tipoPrev.addEventListener('change', ajustarPrev); ajustarPrev();
       r.querySelector('#in-horas').addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
         await conCarga(null, async () => {
@@ -887,7 +817,8 @@ const acciones = {
   notas: (b) => abrirNotas(b, b.dataset.id),
   'no-asistir': (b) => modalNoAsistir(b.dataset.id),
   'crear-diario': (b) => conCarga(b, async () => { const doc = await crearDiario(b.dataset.id); toast('Diario crítico creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render(); }),
-  'enviar-pdf': (b) => modalEnviarPdf(b.dataset.id),
+  'pdf-diario': (b) => { const a = S.actividad(b.dataset.id); descargarPdf(b, a.docId, `Diario critico - Caso ${a.caso} - ${fmtNum(a.fecha).replaceAll('/', '-')}.pdf`); },
+  'marcar-enviado': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.enviado = true; a.enviadoEn = hoyISO(); }); toast('Marcado como enviado.'); render(); },
   feedback: (b) => modalFeedback(b.dataset.id),
   'no-enviar': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.noEnviar = !a.noEnviar; }); render(); },
   'add-tc': () => modalAnadirTC(),
@@ -898,7 +829,8 @@ const acciones = {
     descargar(blob, `Registro horas - ${S.datos().ajustes.nombre || 'alumno'}.xlsx`);
     toast(avisos.length ? avisos.join(' ') : 'Hoja de horas descargada.', { ms: avisos.length ? 12000 : 5000 });
   }),
-  'enviar-luria': (b) => modalEnviarLuria(b.dataset.mes),
+  'marcar-luria': (b) => { const m = b.dataset.mes; S.actualizar((s) => { const inf = s.informes[m] || {}; if (inf.enviado) delete inf.enviado; else inf.enviado = hoyISO(); s.informes[m] = inf; }); render(); },
+  'pdf-mensual': (b) => descargarPdf(b, S.datos().informes[b.dataset.mes].docId, `Diario critico - ${nombreMes(b.dataset.mes)}.pdf`),
   mensual: (b) => conCarga(b, async () => { const doc = await generarMensual(b.dataset.mes); toast('Borrador del diario mensual creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render(); }),
   'quitar-previa': (b) => { S.actualizar((s) => { s.horasPrevias.splice(Number(b.dataset.i), 1); }); render(); },
   'nuevo-ter': () => modalTerapeuta(null, () => render()),

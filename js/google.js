@@ -1,6 +1,6 @@
-// Conexión con Google: inicio de sesión, Drive, Docs y Gmail.
-// Permisos limitados: la app solo ve los archivos que ella crea (drive.file),
-// su carpeta oculta de datos (drive.appdata) y puede enviar correos que el alumno aprueba (gmail.send).
+// Conexión con Google: inicio de sesión, Drive y Docs. Sin acceso al correo.
+// Permisos limitados: la app solo ve los archivos que ella crea (drive.file)
+// y su carpeta oculta de datos (drive.appdata).
 import { CONFIG } from './config.js';
 
 let token = null;
@@ -148,25 +148,11 @@ export async function anadirAlFinal(docId, texto) {
   await lote(docId, [{ insertText: { location: { index: fin }, text: '\n' + texto } }]);
 }
 
-// ---------- Gmail ----------
-const b64 = (s) => btoa(unescape(encodeURIComponent(s)));
-const trocear = (s) => s.replace(/.{1,76}/g, '$&\r\n');
-async function blobB64(blob) {
-  const u = new Uint8Array(await blob.arrayBuffer());
-  let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-export async function enviarCorreo({ para, cc, asunto, texto, adjuntos = [] }) {
-  const b = 'mx' + Math.random().toString(36).slice(2);
-  let m = `To: ${para}\r\n${cc ? `Cc: ${cc}\r\n` : ''}Subject: =?UTF-8?B?${b64(asunto)}?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${b}"\r\n\r\n`;
-  m += `--${b}\r\nContent-Type: text/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${trocear(b64(texto))}\r\n`;
-  for (const a of adjuntos) {
-    const n = `=?UTF-8?B?${b64(a.nombre)}?=`;
-    m += `--${b}\r\nContent-Type: ${a.tipo}; name="${n}"\r\nContent-Disposition: attachment; filename="${n}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${trocear(await blobB64(a.blob))}\r\n`;
-  }
-  m += `--${b}--`;
-  const raw = btoa(m).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return json('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ raw }),
-  });
+// Borra el archivo de datos de Drive (con su historial de versiones) y lo crea de nuevo, limpio
+export async function recrearDatos(obj) {
+  const q = encodeURIComponent(`name='${CONFIG.ARCHIVO_DATOS}'`);
+  const r = await json(`${DRIVE}/files?spaces=appDataFolder&q=${q}&fields=files(id)`);
+  for (const f of r.files || []) await api(`${DRIVE}/files/${f.id}`, { method: 'DELETE' });
+  idDatos = null;
+  return escribirDatos(obj);
 }

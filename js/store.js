@@ -15,8 +15,6 @@ function porDefecto() {
       objetivoHoras: 450,
       periodo: 'Septiembre 2026 – marzo 2027',
       horas: { espejo: 2, coterapia: 2, tutoria_metodologica: 5, tutoria_caso: 3, seminario: 3, practica_pdp: 0 },
-      correoFormacion: '',
-      correoPracticas: '',
       plantillaDiarioId: null,
       plantillaPropia: false,
       plantillaHorasId: null,
@@ -50,6 +48,10 @@ function completar(s) {
   s.ajustes = { ...d.ajustes, ...(s.ajustes || {}), horas: { ...d.ajustes.horas, ...(s.ajustes?.horas || {}) } };
   for (const k of ['terapeutas', 'actividades', 'horasPrevias']) if (!Array.isArray(s[k])) s[k] = [];
   if (!s.informes) s.informes = {};
+  // La app ya no guarda correos: se eliminan los de versiones anteriores
+  delete s.ajustes.correoFormacion; delete s.ajustes.correoPracticas;
+  for (const t of s.terapeutas) delete t.email;
+  for (const a of s.actividades) if (a.tarea) delete a.tarea.para;
   asegurarPrecargadas(s);
   return s;
 }
@@ -57,6 +59,7 @@ function completar(s) {
 export function cargar() {
   try { estado = JSON.parse(localStorage.getItem(CLAVE)); } catch { estado = null; }
   estado = completar(estado || porDefecto());
+  try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch {}
   return estado;
 }
 
