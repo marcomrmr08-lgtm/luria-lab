@@ -601,11 +601,56 @@ function vPractica(id) {
 }
 
 // ---------- Diario ----------
-let filtroDiario = { q: '', tipo: 'todo' };
+let filtroDiario = { q: '', tipo: 'todo', archivadas: false };
+// Entradas anteriores a la app que no tienen nada escrito
+const sinContenido = (a) => a.pasada && !a.docId && !a.aprendizaje && !a.notasCaliente && !a.feedback?.length && !Object.values(a.ficha || {}).some(Boolean);
+
+function archivar(ids, valor) {
+  S.actualizar((s) => { for (const a of s.actividades) if (ids.includes(a.id)) a.archivada = valor; });
+  render();
+  toast(valor ? (ids.length === 1 ? 'Entrada archivada. Sigue contando en tus horas.' : `${ids.length} entradas archivadas. Siguen contando en tus horas.`) : 'Entrada recuperada.', {
+    texto: 'Deshacer', ms: 7000,
+    alPulsar: () => { S.actualizar((s) => { for (const a of s.actividades) if (ids.includes(a.id)) a.archivada = !valor; }); render(); },
+  });
+}
+
+// Deslizar a la izquierda para archivar (como en el correo)
+function montarDeslizar(raiz) {
+  raiz.querySelectorAll('.deslizable').forEach((cont) => {
+    const el = cont.querySelector('.item');
+    let x0 = 0, y0 = 0, dx = 0, activo = false, horizontal = null, movido = false;
+    el.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; activo = true; horizontal = null; movido = false; });
+    el.addEventListener('pointermove', (e) => {
+      if (!activo) return;
+      const mx = e.clientX - x0; const my = e.clientY - y0;
+      if (horizontal === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) { horizontal = Math.abs(mx) > Math.abs(my); if (horizontal) el.setPointerCapture(e.pointerId); }
+      if (!horizontal) return;
+      dx = Math.min(0, mx); movido = Math.abs(dx) > 8;
+      el.style.transition = 'none'; el.style.transform = `translateX(${dx}px)`;
+      cont.classList.toggle('listo', dx < -90);
+    });
+    const soltar = () => {
+      if (!activo) return; activo = false;
+      el.style.transition = 'transform .2s ease';
+      if (dx < -90) {
+        el.style.transform = 'translateX(-110%)';
+        setTimeout(() => archivar([cont.dataset.id], !filtroDiario.archivadas), 180);
+      } else { el.style.transform = ''; cont.classList.remove('listo'); }
+    };
+    el.addEventListener('pointerup', soltar);
+    el.addEventListener('pointercancel', soltar);
+    el.addEventListener('click', (e) => { if (movido) { e.preventDefault(); e.stopPropagation(); movido = false; } }, true);
+  });
+}
+
 function vDiario() {
   const grupos = { todo: null, casos: ['espejo', 'coterapia'], tc: ['tutoria_caso'], formacion: ['tutoria_metodologica', 'seminario'], pdp: ['practica_pdp'] };
   const q = filtroDiario.q.toLowerCase();
-  const lista = S.hechas().filter((a) => !grupos[filtroDiario.tipo] || grupos[filtroDiario.tipo].includes(a.tipo))
+  const verArch = filtroDiario.archivadas;
+  const nArchivadas = S.hechas().filter((a) => a.archivada).length;
+  const vacias = S.hechas().filter((a) => !a.archivada && sinContenido(a));
+  const lista = S.hechas().filter((a) => Boolean(a.archivada) === verArch)
+    .filter((a) => !grupos[filtroDiario.tipo] || grupos[filtroDiario.tipo].includes(a.tipo))
     .filter((a) => !q || [titulo(a), a.caso, a.aprendizaje, a.notasCaliente, a.descripcion, ...(a.temas || []), ...Object.values(a.ficha || {})].join(' ').toLowerCase().includes(q))
     .sort((x, y) => porFechaHora(y, x));
   let html = ''; let mes = '';
@@ -620,17 +665,23 @@ function vDiario() {
       const n = ['idea', 'guia', 'aplica', 'dudas'].filter((k) => a.ficha?.[k]).length;
       detalle = `<span class="insignias"><span class="insignia">Ficha · ${n} de 4 apartados</span>${a.tipo === 'tutoria_metodologica' && a.tarea?.docId && !a.tarea?.enviada ? '<span class="insignia aviso">Tarea sin enviar</span>' : ''}</span>`;
     } else detalle = a.descripcion ? `<span class="item-sub">${esc(a.descripcion.slice(0, 120))}</span>` : '';
-    html += `<a href="${rutaVer(a)}" class="item" style="flex-direction:column;align-items:stretch;gap:8px"><span class="fila-entre"><span class="tipo c-${color(a)}">${esc(esSesion(a) ? `${nombreTipo(a)} · Caso ${a.caso}` : a.tipo === 'tutoria_metodologica' ? `Tutoría metodológica ${a.numero}` : a.tipo === 'seminario' ? `Seminario ${a.numero}` : nombreTipo(a))}</span><span class="pequeno suave">${esc(fmtCorta(a.fecha))} · ${S.horasDe(a)} h</span></span>
-      ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' || a.tipo === 'practica_pdp' ? `<span class="item-titulo">${esc(a.titulo)}</span>` : ''}${detalle}</a>`;
+    const etiqueta = esSesion(a) ? `${nombreTipo(a)} · Caso ${a.caso || '—'}` : (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') ? `${nombreTipo(a)}${a.numero ? ' ' + a.numero : ''}` : nombreTipo(a);
+    html += `<div class="deslizable" data-id="${esc(a.id)}"><span class="fondo-archivar" aria-hidden="true">${icon(verArch ? 'diario' : 'papelera', 20)}${verArch ? 'Recuperar' : 'Archivar'}</span>
+      <a href="${rutaVer(a)}" class="item" style="flex-direction:column;align-items:stretch;gap:8px"><span class="fila-entre"><span class="tipo c-${color(a)}">${esc(etiqueta)}</span><span class="pequeno suave">${esc(fmtCorta(a.fecha))} · ${S.horasDe(a)} h</span></span>
+      ${a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario' || a.tipo === 'practica_pdp' ? `<span class="item-titulo">${esc(a.titulo)}</span>` : ''}${detalle}</a>
+      <button class="btn texto pequeno archivar-btn" data-act="archivar" data-id="${esc(a.id)}">${verArch ? 'Recuperar' : 'Archivar'}</button></div>`;
   }
   const chip = (k, t) => `<button class="chip ${filtroDiario.tipo === k ? 'oscuro' : ''}" data-act="filtro" data-tipo="${k}" aria-pressed="${filtroDiario.tipo === k}">${t}</button>`;
   return {
-    html: `<div class="pantalla"><h1 class="titulo">Diario</h1>
+    html: `<div class="pantalla"><div class="fila-entre"><h1 class="titulo">${verArch ? 'Archivadas' : 'Diario'}</h1>${verArch ? '<button class="btn texto" data-act="ver-archivadas">Volver al diario</button>' : nArchivadas ? `<button class="btn texto pequeno" data-act="ver-archivadas">Archivadas (${nArchivadas})</button>` : ''}</div>
     <div class="campo"><label for="buscar" class="oculto">Buscar</label><input type="search" id="buscar" placeholder="Buscar en tus entradas" value="${esc(filtroDiario.q)}"></div>
     <div class="chips">${chip('todo', 'Todo')}${chip('casos', 'Casos')}${chip('tc', 'T. de caso')}${chip('formacion', 'Formación')}${chip('pdp', 'PDP')}</div>
-    <div class="seccion" id="lista-diario">${html || '<p class="vacio">Aún no hay entradas. Lo que registres aparecerá aquí.</p>'}</div>
+    ${!verArch && vacias.length > 1 ? `<div class="aviso-caja" style="align-items:center">${icon('reloj', 18)}<span style="flex:1">Tienes ${vacias.length} entradas anteriores a la app sin nada escrito.</span><button class="btn pequeno" data-act="archivar-vacias">Archivarlas</button></div>` : ''}
+    ${lista.length ? `<p class="mini suave" style="margin-top:-4px">${verArch ? 'Desliza a la izquierda para recuperar una entrada.' : 'Desliza una entrada a la izquierda para archivarla. Seguirá contando en tus horas y en la hoja de Luria.'}</p>` : ''}
+    <div class="seccion" id="lista-diario">${html || `<p class="vacio">${verArch ? 'No tienes entradas archivadas.' : 'Aún no hay entradas. Lo que registres aparecerá aquí.'}</p>`}</div>
     </div>${fab(true)}${nav('diario')}`,
     mount(r) {
+      montarDeslizar(r);
       const b = r.querySelector('#buscar');
       b.addEventListener('input', () => { filtroDiario.q = b.value; const pos = b.selectionStart; render(); const nb = app.querySelector('#buscar'); nb.focus(); nb.setSelectionRange(pos, pos); });
     },
@@ -801,7 +852,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.4.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.5.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -902,6 +953,9 @@ const acciones = {
   'no-enviar': (b) => { const a = S.actividad(b.dataset.id); S.actualizar(() => { a.noEnviar = !a.noEnviar; }); render(); },
   'add-tc': () => modalAnadirTC(),
   'varios-dias': () => modalVariosDias(),
+  archivar: (b) => archivar([b.dataset.id], !filtroDiario.archivadas),
+  'ver-archivadas': () => { filtroDiario.archivadas = !filtroDiario.archivadas; render(); window.scrollTo(0, 0); },
+  'archivar-vacias': () => archivar(S.hechas().filter((a) => !a.archivada && sinContenido(a)).map((a) => a.id), true),
   'add-sesion': () => modalAnadirSesion(),
   filtro: (b) => { filtroDiario.tipo = b.dataset.tipo; render(); },
   'descargar-hoja': (b) => conCarga(b, async () => {

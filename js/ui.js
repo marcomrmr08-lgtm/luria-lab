@@ -29,10 +29,11 @@ export function nombreMes(ym) {
 
 // ---------- Avisos ----------
 let toastTimer;
-export function toast(msg, { enlace, texto = 'Abrir', error = false, ms = 6000 } = {}) {
+export function toast(msg, { enlace, texto = 'Abrir', error = false, ms = 6000, alPulsar } = {}) {
   const t = document.getElementById('toast');
   t.className = 'toast visible' + (error ? ' error' : '');
-  t.innerHTML = `<span>${esc(msg)}</span>${enlace ? `<a href="${esc(enlace)}" target="_blank" rel="noopener">${esc(texto)}</a>` : ''}`;
+  t.innerHTML = `<span>${esc(msg)}</span>${enlace ? `<a href="${esc(enlace)}" target="_blank" rel="noopener">${esc(texto)}</a>` : ''}${alPulsar ? `<button type="button" class="toast-btn">${esc(texto)}</button>` : ''}`;
+  t.querySelector('.toast-btn')?.addEventListener('click', () => { t.className = 'toast'; alPulsar(); });
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = 'toast'; }, ms);
 }

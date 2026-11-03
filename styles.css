@@ -124,6 +124,20 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .item:focus-visib
 .dias label { height: 44px; border-radius: 12px; border: 1px solid var(--linea2); background: var(--superficie); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; cursor: pointer; }
 .dias input:checked + label { background: var(--verde); border-color: var(--verde); color: #fff; }
 .dias input:focus-visible + label { outline: 2px solid var(--verde); outline-offset: 1px; }
+.deslizable { position: relative; border-radius: var(--radio); overflow: hidden; background: var(--ambar-cl); }
+.deslizable .item { position: relative; z-index: 1; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.fondo-archivar { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-right: 20px; font-size: 14px; font-weight: 700; color: #7A4A0E; }
+.deslizable.listo { background: #C7832E; }
+.deslizable.listo .fondo-archivar { color: #fff; }
+/* En ordenador (sin pantalla táctil) se muestra un botón en vez de deslizar */
+.archivar-btn { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .deslizable { overflow: visible; background: none; }
+  .fondo-archivar { display: none; }
+  .archivar-btn { display: inline-flex; position: absolute; right: 10px; bottom: 8px; z-index: 2; opacity: 0; transition: opacity .15s; }
+  .deslizable:hover .archivar-btn, .archivar-btn:focus-visible { opacity: 1; }
+}
+.toast-btn { background: none; border: 0; color: #BFE3D6; font-weight: 700; font-size: 14px; cursor: pointer; padding: 4px 0; white-space: nowrap; }
 .pregunta { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; }
 .feedback { background: var(--fondo); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
 
