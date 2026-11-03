@@ -404,7 +404,7 @@ function vAgenda() {
     const lunes = sumarDias(lunesDe(hoy), 7 * semanaOffset);
     const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
     const deDia = (d) => s.actividades.filter((a) => a.fecha === d).sort(porFechaHora);
-    const tira = dias.map((d) => { const n = deDia(d).filter((a) => a.estado !== 'cancelada').length; return `<a href="#dia-${d}" class="tira-dia ${d === hoy ? 'hoy' : ''}"><span>${'LMXJVSD'[dias.indexOf(d)]}</span><b>${Number(d.slice(8))}</b><i>${'•'.repeat(Math.min(n, 3)) || '&nbsp;'}</i></a>`; }).join('');
+    const tira = dias.map((d) => { const n = deDia(d).filter((a) => a.estado !== 'cancelada').length; return `<button type="button" class="tira-dia ${d === hoy ? 'hoy' : ''}" data-act="ir-dia" data-d="${d}" aria-label="${esc(fmtFecha(d))}"><span>${'LMXJVSD'[dias.indexOf(d)]}</span><b>${Number(d.slice(8))}</b><i>${'•'.repeat(Math.min(n, 3)) || '&nbsp;'}</i></button>`; }).join('');
     const rango = `${fmtCorta(dias[0])} – ${fmtCorta(dias[6])}`;
     cuerpo = `<div class="fila-entre"><button class="icono-btn" data-act="semana" data-d="-1" aria-label="Semana anterior">${icon('atras', 20)}</button>
       <span style="text-align:center"><b style="font-size:16px">${semanaOffset === 0 ? 'Esta semana' : semanaOffset === 1 ? 'Semana que viene' : semanaOffset === -1 ? 'Semana pasada' : esc(rango)}</b><br><span class="mini suave">${esc(rango)}</span></span>
@@ -939,7 +939,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.8.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 1.8.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1048,6 +1048,7 @@ const acciones = {
   'add-tc': () => modalAnadirTC(),
   semana: (b) => { const d = Number(b.dataset.d); semanaOffset = d === 0 ? 0 : semanaOffset + d; render(); },
   'vista-agenda': (b) => { vistaAgenda = b.dataset.v; render(); },
+  'ir-dia': (b) => { document.getElementById(`dia-${b.dataset.d}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   'varios-dias': () => modalVariosDias(),
   'quitar-logo': async () => { await idbSet('logo', null); if (logoURL) URL.revokeObjectURL(logoURL); logoURL = null; render(); },
   archivar: (b) => archivar([b.dataset.id], !filtroDiario.archivadas),
