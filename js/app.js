@@ -148,7 +148,7 @@ const nav = (activo) => {
     `<a href="#/${r}" class="${r === activo ? 'activo' : ''}" ${r === activo ? 'aria-current="page"' : ''}>${icon(i, 24)}${t}</a>`).join('')}</div></nav>`;
 };
 const fab = (compacto) => `<a href="#/nueva" class="fab" ${compacto ? 'aria-label="Nueva entrada" style="width:56px;padding:0;justify-content:center"' : ''}>${icon('mas', 22)}${compacto ? '' : 'Nueva entrada'}</a>`;
-const volver = (href, texto) => `<header class="cabecera"><div class="cabecera-izq"><a href="${href}" class="volver" aria-label="Volver">${icon('atras', 24)}</a><span class="titulo-m">${esc(texto)}</span></div></header>`;
+const volver = (href, texto) => `<header class="cabecera" ${['#/inicio', '#/diario', '#/hexaflex'].includes(href) ? 'data-raiz' : ''}><div class="cabecera-izq"><a href="${href}" class="volver" aria-label="Volver">${icon('atras', 24)}</a><span class="titulo-m">${esc(texto)}</span></div></header>`;
 const opcionesTerapeuta = (sel) => `<option value="">Sin indicar</option>${S.datos().terapeutas.map((t) => `<option value="${esc(t.id)}" ${t.id === sel ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('')}<option value="__nuevo">+ Añadir terapeuta…</option>`;
 const seg = (nombre, opciones, valor) => `<div class="segmentado" role="radiogroup">${opciones.map(([v, t]) => {
   const id = `${nombre}-${v}`; return `<input type="radio" id="${id}" name="${nombre}" value="${v}" ${v === valor ? 'checked' : ''}><label for="${id}">${t}</label>`;
@@ -460,16 +460,18 @@ function vInicio() {
   const empezar = !s.ajustes.nombre || !s.ajustes.plantillaHorasNombre
     ? `<a href="#/ajustes" class="item">${'<span class="icono-caja bg-primario">' + icon('ajustes', 20) + '</span>'}<span class="item-texto"><span class="item-titulo">Termina de configurar la app</span><span class="item-sub">${!s.ajustes.nombre ? 'Tu nombre' : ''}${!s.ajustes.nombre && !s.ajustes.plantillaHorasNombre ? ' y ' : ''}${!s.ajustes.plantillaHorasNombre ? 'la plantilla de horas de Luria' : ''}</span></span></a>` : '';
   return {
-    html: `<div class="pantalla">
+    html: `<div class="pantalla ancha">
     <header class="cabecera">
-      <div>${logoURL ? `<img src="${logoURL}" alt="Luria Lab" class="logo-centro">` : '<span class="marca">Luria Lab</span>'}<p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p><h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1></div>
-      <div style="display:flex;gap:8px"><a href="#/exportar" class="icono-btn" aria-label="Exportar y entregas">${icon('descargar')}</a><a href="#/ajustes" class="icono-btn" aria-label="Ajustes">${icon('ajustes')}</a></div>
+      <div><span class="solo-movil">${logoURL ? `<img src="${logoURL}" alt="Luria Lab" class="logo-centro">` : '<span class="marca">Luria Lab</span>'}</span><p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p><h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1></div>
+      <div class="solo-movil" style="display:flex;gap:8px"><a href="#/exportar" class="icono-btn" aria-label="Exportar y entregas">${icon('descargar')}</a><a href="#/ajustes" class="icono-btn" aria-label="Ajustes">${icon('ajustes')}</a></div>
     </header>
     ${banda}${empezar}
+    <div class="cols"><div class="col">
     <section class="seccion"><div class="fila-entre"><h2 class="seccion-titulo">Hoy</h2><a href="#/agenda" style="font-size:14px;font-weight:700;padding:8px 0">Ver agenda</a></div>
       ${deHoy.length ? deHoy.map(tarjetaHoy).join('') : `<div class="tarjeta"><p class="suave pequeno">No tienes nada planificado para hoy.</p></div>`}
     </section>
     ${pend.length ? `<section class="seccion"><h2 class="seccion-titulo">Pendiente</h2>${pend.slice(0, 6).map((p) => `<a href="${p.h}" class="item"><span class="icono-caja bg-${p.c}">${icon(p.ic, 20)}</span><span class="item-texto"><span class="item-titulo">${esc(p.t)}</span><span class="item-sub">${esc(p.s)}</span></span></a>`).join('')}</section>` : ''}
+    </div><div class="col">
     <section class="tarjeta">
       <div class="fila-entre"><span class="pequeno suave" style="font-weight:600;font-size:14px">Horas de prácticas</span><a href="#/ajustes" class="pequeno" style="font-weight:600">Tu objetivo: ${obj} h · cambiar</a></div>
       <div style="display:flex;align-items:baseline;gap:6px"><span class="horas-num">${total}</span><span class="suave">h computables</span></div>
@@ -488,6 +490,7 @@ function vInicio() {
         <div class="celda"><b>${semHechas} / ${plan.sem}</b><span class="mini suave">Seminarios</span></div>
       </div>
     </section>
+    </div></div>
     </div>${fab()}${nav('inicio')}`,
   };
 }
@@ -516,7 +519,7 @@ function vAgenda() {
       <button class="icono-btn" data-act="semana" data-d="1" aria-label="Semana siguiente">${icon('sig', 20)}</button></div>
       <div class="tira">${tira}</div>
       ${semanaOffset !== 0 ? '<button class="btn texto pequeno" data-act="semana" data-d="0" style="align-self:center">Volver a hoy</button>' : ''}
-      ${dias.map((d) => { const acts = deDia(d); return `<section class="seccion dia-bloque ${d === hoy ? 'hoy' : ''}" id="dia-${d}"><h2 class="etiqueta-grupo">${d === hoy ? 'Hoy · ' : ''}${esc(fmtFecha(d))}</h2>${acts.length ? acts.map((a) => itemAgenda(a)).join('') : '<p class="mini suave" style="padding:2px 4px 6px">Nada planificado</p>'}</section>`; }).join('')}`;
+      <div class="semana-dias">${dias.map((d, i) => { const acts = deDia(d); return `<section class="seccion dia-bloque ${d === hoy ? 'hoy' : ''}" id="dia-${d}"><h2 class="etiqueta-grupo"><span class="largo">${d === hoy ? 'Hoy · ' : ''}${esc(fmtFecha(d))}</span><span class="corto">${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i]} <b>${Number(d.slice(8))}</b>${d === hoy ? ' · hoy' : ''}</span></h2>${acts.length ? acts.map((a) => itemAgenda(a)).join('') : '<p class="mini suave" style="padding:2px 4px 6px">Nada planificado</p>'}</section>`; }).join('')}</div>`;
   } else {
     const proximas = s.actividades.filter((a) => a.estado === 'programada' && a.fecha >= hoy).sort(porFechaHora);
     let diaActual = '';
@@ -527,7 +530,7 @@ function vAgenda() {
     cuerpo = cuerpo || '<p class="vacio">No hay nada planificado.</p>';
   }
   return {
-    html: `<div class="pantalla sin-nav">${volver('#/inicio', 'Agenda')}
+    html: `<div class="pantalla sin-nav ${vistaAgenda === 'semana' ? 'ancha' : ''}">${volver('#/inicio', 'Agenda')}
     <div class="segmentado" role="tablist"><button class="seg-btn ${vistaAgenda === 'semana' ? 'activo' : ''}" data-act="vista-agenda" data-v="semana" role="tab" aria-selected="${vistaAgenda === 'semana'}">Semana</button><button class="seg-btn ${vistaAgenda === 'lista' ? 'activo' : ''}" data-act="vista-agenda" data-v="lista" role="tab" aria-selected="${vistaAgenda === 'lista'}">Próximas</button></div>
     <div class="botones"><button class="btn linea" data-act="add-tc">${icon('mas', 18)}T. de caso</button><button class="btn linea" data-act="add-sesion">${icon('mas', 18)}Espejo / coterapia</button></div>
     ${cuerpo}</div>`,
@@ -817,7 +820,7 @@ function vDiario() {
     <div class="campo"><label for="buscar" class="oculto">Buscar</label><input type="search" id="buscar" placeholder="Buscar en tus entradas" value="${esc(filtroDiario.q)}"></div>
     <div class="chips">${chip('todo', 'Todo')}${chip('casos', 'Casos')}${chip('tc', 'T. de caso')}${chip('formacion', 'Formación')}${chip('pdp', 'PDP')}</div>
     ${!verArch && vacias.length > 1 ? `<div class="aviso-caja" style="align-items:center">${icon('reloj', 18)}<span style="flex:1">Tienes ${vacias.length} entradas anteriores a la app sin nada escrito.</span><button class="btn pequeno" data-act="archivar-vacias">Archivarlas</button></div>` : ''}
-    ${lista.length ? `<p class="mini suave" style="margin-top:-4px">${verArch ? 'Desliza a la izquierda para recuperar una entrada.' : 'Desliza una entrada a la izquierda para archivarla. Seguirá contando en tus horas y en la hoja de Luria.'}</p>` : ''}
+    ${lista.length ? `<p class="mini suave" style="margin-top:-4px">${window.matchMedia('(hover: hover) and (pointer: fine)').matches ? (verArch ? 'Pasa el ratón por una entrada y pulsa «Recuperar».' : 'Pasa el ratón por una entrada y pulsa «Archivar». Seguirá contando en tus horas y en la hoja de Luria.') : verArch ? 'Desliza a la izquierda para recuperar una entrada.' : 'Desliza una entrada a la izquierda para archivarla. Seguirá contando en tus horas y en la hoja de Luria.'}</p>` : ''}
     <div class="seccion" id="lista-diario">${html || `<p class="vacio">${verArch ? 'No tienes entradas archivadas.' : 'Aún no hay entradas. Lo que registres aparecerá aquí.'}</p>`}</div>
     </div>${fab(true)}${nav('diario')}`,
     mount(r) {
@@ -962,8 +965,9 @@ function vExportar(params) {
   const inf = s.informes[mes] || {};
   const n = (t) => S.hechas().filter((a) => a.tipo === t && a.fecha.startsWith(mes)).length;
   return {
-    html: `<div class="pantalla sin-nav">${volver('#/inicio', 'Exportar y entregas')}
+    html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Exportar y entregas')}
     <div class="campo"><label for="mes">Mes</label><select id="mes">${MESES.map((m) => `<option value="${m}" ${m === mes ? 'selected' : ''}>${esc(nombreMes(m))}</option>`).join('')}</select></div>
+    <div class="cols iguales"><div class="col">
     <section class="tarjeta destacada">
       <span class="item-texto"><span style="font-size:16px;font-weight:700">Hoja de horas</span><span class="item-sub">Plantilla de Luria · las casillas se marcan solas</span></span>
       <div class="conteos">
@@ -980,12 +984,13 @@ function vExportar(params) {
       <button class="btn texto pequeno" data-act="descargar-hoja" style="align-self:flex-start">Descargar el .xlsx directamente (sin Sheets)</button>
       ${inf.enviado ? `<div class="fila-entre"><span class="insignia ok">${icon('check', 14)}&nbsp;Enviado a Luria el ${esc(fmtNum(inf.enviado))}</span><button class="btn texto pequeno" data-act="marcar-luria" data-mes="${mes}">Desmarcar</button></div>` : `<button class="btn" data-act="marcar-luria" data-mes="${mes}">${icon('check', 16)}Ya lo he enviado a Luria</button>`}
     </section>
+    </div><div class="col">
     <section class="tarjeta">
       <span class="item-texto"><span style="font-size:16px;font-weight:700">Diario crítico del mes</span><span class="item-sub" style="line-height:1.4">Compila tus actividades del mes, ordenadas por tipo, con preguntas guía para tu síntesis. De los casos incluye el enlace a cada diario, sin copiar su contenido.</span></span>
       <div class="insignias"><span class="insignia ok">${n('espejo') + n('coterapia')} espejos y coterapias</span><span class="insignia" style="background:var(--azul-cl);color:#234A70">${n('tutoria_caso')} T. de caso</span><span class="insignia" style="background:var(--morado-cl);color:#4F3570">${n('tutoria_metodologica')} T. metodológicas</span><span class="insignia aviso">${n('seminario')} seminarios</span><span class="insignia">${n('practica_pdp')} prácticas PDP</span></div>
       ${inf.docId ? `<div class="botones"><a class="btn primario" href="${G.enlaceDoc(inf.docId)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir borrador</a><button class="btn" data-act="mensual" data-mes="${mes}">Volver a generar</button></div><span class="mini suave">Generado el ${esc(fmtNum(inf.generado))}. Si vuelves a generarlo se crea un documento nuevo. ${AYUDA_PDF}</span>`
         : `<button class="btn" data-act="mensual" data-mes="${mes}">${icon('doc', 16)}Generar borrador en Google Docs</button>`}
-    </section></div>`,
+    </section></div></div></div>`,
     mount(r) { r.querySelector('#mes').addEventListener('change', (e) => irA(`#/exportar?mes=${e.target.value}`)); },
   };
 }
@@ -995,8 +1000,9 @@ function vAjustes() {
   const s = S.datos(); const aj = s.ajustes;
   const horasCampo = (t, l) => `<div class="fila"><label for="h-${t}" style="font-size:15px">${l}</label><span style="display:flex;align-items:center;gap:6px"><input type="number" id="h-${t}" name="h_${t}" min="0" step="0.5" value="${esc(aj.horas[t])}" style="width:80px;text-align:center;min-height:40px">h</span></div>`;
   return {
-    html: `<div class="pantalla sin-nav">${volver('#/inicio', 'Ajustes')}
-    <form id="f-aj" class="seccion">
+    html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
+    <div class="ajustes-cols">
+    <form id="f-aj" class="seccion bloque">
       <h2 class="etiqueta-grupo">Mis prácticas</h2>
       <div class="tarjeta">
         <div class="campo"><label for="a-nombre">Nombre y apellidos</label><input type="text" id="a-nombre" name="nombre" value="${esc(aj.nombre)}" placeholder="Aparece en la hoja de horas"></div>
@@ -1010,6 +1016,7 @@ function vAjustes() {
       <button class="btn primario grande">Guardar cambios</button>
     </form>
 
+    <div class="bloque">
     <h2 class="etiqueta-grupo">Plantillas</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Hoja de horas de Luria</span><span class="item-sub">${aj.plantillaHorasNombre ? esc(aj.plantillaHorasNombre) : 'Sin subir'}</span></span><label class="btn texto" for="in-horas" style="cursor:pointer">${aj.plantillaHorasNombre ? 'Cambiar' : 'Subir .xlsx'}</label><input type="file" id="in-horas" accept=".xlsx" class="oculto"></div>
@@ -1017,6 +1024,7 @@ function vAjustes() {
     </div>
     <p class="mini suave" style="line-height:1.45;margin-top:-6px">Si subes tu propia plantilla del diario, la app rellena estas marcas donde las pongas: {{CASO}}, {{CODIGO}}, {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p>
 
+    </div><div class="bloque">
     <h2 class="etiqueta-grupo">Actividades anteriores a la app</h2>
     <div class="tarjeta">
       <p class="pequeno suave" style="line-height:1.45">Lo que hiciste antes de usar la app, con su día, para que se marquen las casillas correctas en la hoja de horas.</p>
@@ -1033,35 +1041,41 @@ function vAjustes() {
       ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales antiguos sin día (ya no cuentan en tus horas ni en la hoja; quítalos y usa la importación o el calendario): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
     </div>
 
+    </div><div class="bloque">
     <h2 class="etiqueta-grupo">Mis terapeutas</h2>
     <div class="tarjeta lista">
       ${s.terapeutas.map((t) => `<button class="fila" data-act="editar-ter" data-id="${esc(t.id)}"><span class="item-texto"><span style="font-size:15px">${esc(t.nombre)}</span></span>${icon('sig', 18)}</button>`).join('')}
       <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button>
     </div>
 
+    </div><div class="bloque">
     <h2 class="etiqueta-grupo">Alias privados de pacientes</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">${Object.keys(leerAlias()).length} alias en este dispositivo</span><span class="item-sub">No se sincronizan. Si cambias de móvil o borras la app, descárgalos antes y vuelve a cargarlos.</span></span><span style="display:flex"><button class="btn texto" data-act="alias-descargar">Descargar</button><label class="btn texto" for="in-alias" style="cursor:pointer">Cargar</label><input type="file" id="in-alias" accept=".json,application/json" class="oculto"></span></div>
     </div>
 
+    </div><div class="bloque">
     <h2 class="etiqueta-grupo">Google Calendar</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Enviar mi agenda a Google Calendar</span><span class="item-sub">${aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'La app crea un calendario «Luria Lab» y solo puede tocar ese'}</span></span>${aj.calendarioActivo ? '<button class="btn texto" data-act="cal-off">Desactivar</button>' : '<button class="btn texto" data-act="cal-on">Activar</button>'}</div>
       ${aj.calendarioId ? '<div class="fila"><span class="item-texto"><span style="font-size:15px">Quitar el calendario «Luria Lab»</span><span class="item-sub">Lo borra de tu Google Calendar con todos sus eventos</span></span><button class="btn texto" style="color:var(--error)" data-act="cal-borrar">Quitar</button></div>' : ''}
     </div>
 
+    </div><div class="bloque">
     <h2 class="etiqueta-grupo">Apariencia</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Logo del centro</span><span class="item-sub">${logoURL ? 'Puesto · solo se ve en este dispositivo' : 'Solo se guarda en este dispositivo, no se publica'}</span></span><span style="display:flex">${logoURL ? '<button class="btn texto" data-act="quitar-logo">Quitar</button>' : ''}<label class="btn texto" for="in-logo" style="cursor:pointer">${logoURL ? 'Cambiar' : 'Subir imagen'}</label><input type="file" id="in-logo" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="oculto"></span></div>
     </div>
 
+    </div><div class="bloque">
     <h2 class="etiqueta-grupo">Cuenta</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cuenta de Google</span><span class="item-sub">${!G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · solo Drive y Docs, sin acceso al correo' : 'Sin conectar'}</span></span>${G.configurado() ? (G.conectado() ? '<button class="btn texto" data-act="desconectar">Desconectar</button>' : '<button class="btn texto" data-act="conectar">Conectar</button>') : ''}</div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.2.0</p>
+    </div></div>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.3.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1486,18 +1500,21 @@ function vPDP() {
       <textarea data-rev="${n}" rows="3" placeholder="Qué quiero comentar con mi tutora · qué me dijo">${esc(r.notas)}</textarea></section>`;
   }).join('');
   return {
-    html: `<div class="pantalla"><div class="item-texto"><h1 class="titulo">Mi PDP</h1><span class="suave pequeno">Plan de desarrollo profesional · se guarda solo <span class="guardado c-verde" style="font-weight:700"></span></span></div>
+    html: `<div class="pantalla ancha"><div class="item-texto"><h1 class="titulo">Mi PDP</h1><span class="suave pequeno">Plan de desarrollo profesional · se guarda solo <span class="guardado c-verde" style="font-weight:700"></span></span></div>
     <h2 class="etiqueta-grupo">Mi punto de partida</h2>
     <div class="dos-col">
       <section class="tarjeta" style="background:var(--exito-cl);border-color:transparent"><label for="p-fuertes" class="tipo c-verde">Puntos fuertes</label><textarea id="p-fuertes" data-pdp="fuertes" rows="6" style="background:transparent;border:0;padding:0">${esc(p.fuertes)}</textarea></section>
       <section class="tarjeta" style="background:var(--ambar-cl);border-color:transparent"><label for="p-mejora" class="tipo c-ambar">Áreas de mejora</label><textarea id="p-mejora" data-pdp="mejora" rows="6" style="background:transparent;border:0;padding:0">${esc(p.mejora)}</textarea></section>
     </div>
+    <div class="cols"><div class="col">
     <h2 class="etiqueta-grupo">Mis objetivos <span style="text-transform:none;font-weight:600">(2 o 3 como máximo)</span></h2>
     ${p.objetivos.map(objetivo).join('')}
     ${p.objetivos.length < 3 ? `<button class="btn linea" data-act="pdp-objetivo">${icon('mas', 18)}Añadir objetivo</button>` : ''}
+    </div><div class="col">
     <h2 class="etiqueta-grupo">Revisiones con tu tutora</h2>${revisiones}
     <div class="fila-entre"><h2 class="etiqueta-grupo">Mis prácticas del PDP</h2><a href="#/practica/nuevo" class="btn texto pequeno">${icon('mas', 16)} Registrar</a></div>
     ${practicas.length ? practicas.slice(0, 5).map((a) => `<a href="${rutaForm(a)}" class="item"><span class="item-texto"><span class="item-titulo">${esc(a.titulo)}</span><span class="item-sub">${esc(fmtCorta(a.fecha))}${a.descripcion ? ' · ' + esc(a.descripcion.slice(0, 80)) : ''}</span></span></a>`).join('') + (practicas.length > 5 ? `<a href="#/diario" class="pequeno" style="font-weight:700">Ver las ${practicas.length} en el Diario</a>` : '') : '<p class="pequeno suave">Role plays, lecturas o ejercicios en ti. También se añaden al practicar una ficha del Hexaflex.</p>'}
+    </div></div>
     </div>${nav('pdp')}`,
     mount(r) {
       const ok = () => { const a = r.querySelector('.guardado'); if (a) { a.textContent = '· guardado'; setTimeout(() => { a.textContent = ''; }, 1500); } };
@@ -1647,14 +1664,71 @@ const rutas = [
   [/^#\/pdp$/, () => vPDP()],
   [/^#\/(guia)$/, (s) => vProximamente(s)],
 ];
+// ---------- Formato de escritorio (desde 960 px de ancho) ----------
+const ESCRITORIO = window.matchMedia('(min-width: 960px)');
+ESCRITORIO.addEventListener?.('change', () => render());
+function seccionDe(ruta) {
+  if (/^#\/?(inicio)?$/.test(ruta)) return 'inicio';
+  const m = ruta.match(/^#\/(\w+)(?:\/([^/]+))?/); if (!m) return 'inicio';
+  const [, r, id] = m;
+  if (r === 'biblio') return 'hexaflex';
+  if (r === 'caso') return 'diario';
+  if (r === 'elegir') return 'nueva';
+  if (['sesion', 'tc', 'ficha', 'practica'].includes(r)) {
+    const a = id && !id.startsWith('nuevo') ? S.actividad(decodeURIComponent(id)) : null;
+    return !a ? 'nueva' : a.estado === 'hecha' ? 'diario' : 'agenda';
+  }
+  return r;
+}
+function lateral(sec) {
+  const enlace = (r, t, i) => `<a href="#/${r}" class="lat-enlace ${r === sec ? 'activo' : ''}" ${r === sec ? 'aria-current="page"' : ''}>${icon(i, 20)}<span>${t}</span></a>`;
+  const estado = !G.configurado() ? `<span class="lat-estado">${icon('candado', 14)}Modo prueba · solo este dispositivo</span>`
+    : G.conectado() ? `<span class="lat-estado ok"><i></i>Conectado a tu Drive</span>`
+    : `<button class="btn pequeno" data-act="conectar" style="width:100%">${hayPendiente() ? 'Guardar cambios en Drive' : 'Conectar con Google'}</button>`;
+  return `<aside class="lateral" aria-label="Menú">
+    <a href="#/inicio" class="lat-marca">${logoURL ? `<img src="${logoURL}" alt="Luria Lab">` : 'Luria Lab'}</a>
+    <a href="#/nueva" class="btn primario lat-nueva">${icon('mas', 18)}Nueva entrada</a>
+    <nav class="lat-grupo">${enlace('inicio', 'Inicio', 'inicio')}${enlace('agenda', 'Agenda', 'calendario')}${enlace('diario', 'Diario', 'diario')}${enlace('guia', 'Guía clínica', 'guia')}${enlace('pdp', 'Mi PDP', 'pdp')}${enlace('hexaflex', 'Hexaflex', 'hexa')}</nav>
+    <nav class="lat-grupo">${enlace('exportar', 'Exportar y entregas', 'descargar')}${enlace('ajustes', 'Ajustes', 'ajustes')}</nav>
+    <div class="lat-pie">${estado}</div>
+  </aside>`;
+}
+// Pantallas que en el ordenador se ven al lado de su lista (Diario) o del hexágono (Hexaflex)
+function maestroDe(sec, ruta) {
+  if (sec === 'diario' && ruta !== '#/diario' && !ruta.startsWith('#/diario')) return vDiario;
+  if (sec === 'hexaflex') return vHexaflex;
+  return null;
+}
+const vacioDetalle = (txt) => ({ html: `<div class="pantalla detalle-vacio"><div class="tarjeta" style="align-items:center;text-align:center;padding:40px 24px">${icon('diario', 28)}<p class="suave">${txt}</p></div></div>` });
 function render() {
   const [ruta, qs] = (location.hash || '#/inicio').split('?');
   const params = new URLSearchParams(qs || '');
   for (const [re, fn] of rutas) {
     const m = ruta.match(re);
     if (m) {
-      const v = fn(...m.slice(1), params);
-      app.innerHTML = v.html; v.mount?.(app);
+      if (!ESCRITORIO.matches) {
+        const v = fn(...m.slice(1), params);
+        app.innerHTML = v.html; v.mount?.(app); app.classList.remove('es-escritorio');
+        return;
+      }
+      const sec = seccionDe(ruta);
+      // Se conserva la posición de la lista de la izquierda al cambiar de entrada
+      const antes = app.querySelector('.maestro'); const scrollMaestro = antes && antes.dataset.sec === sec ? antes.scrollTop : 0;
+      let maestro = null; let detalle;
+      if (ruta === '#/diario') { maestro = vDiario(); detalle = vacioDetalle('Elige una entrada de la lista para verla aquí.'); }
+      else if (ruta === '#/hexaflex') { maestro = vHexaflex(); detalle = vHxModelo(); }
+      else { const mf = maestroDe(sec, ruta); if (mf) maestro = mf(); detalle = fn(...m.slice(1), params); }
+      app.classList.add('es-escritorio');
+      app.innerHTML = `${lateral(sec)}<div class="principal">${maestro
+        ? `<div class="maestro-detalle"><div class="maestro" data-sec="${sec}">${maestro.html}</div><div class="detalle">${detalle.html}</div></div>`
+        : detalle.html}</div>`;
+      const cMaestro = app.querySelector('.maestro'); const cDetalle = app.querySelector('.detalle') || app.querySelector('.principal');
+      if (cMaestro) {
+        maestro.mount?.(cMaestro); cMaestro.scrollTop = scrollMaestro;
+        const actual = decodeURIComponent(ruta);
+        cMaestro.querySelectorAll('a[href]').forEach((a) => { const h = decodeURIComponent(a.getAttribute('href')); if (h === actual || (actual.startsWith('#/hexaflex/p/') && h === actual)) a.classList.add('seleccionada'); });
+      }
+      detalle.mount?.(cDetalle);
       return;
     }
   }
