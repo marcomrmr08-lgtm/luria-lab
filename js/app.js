@@ -188,13 +188,27 @@ async function plantillaDiarioId() {
   aj.plantillaPropia = false; aj.plantillaDiarioV = PLANTILLA_DIARIO_V; S.guardar();
   return aj.plantillaDiarioId;
 }
+// Nombre del archivo del diario en Drive (no lleva la inicial del paciente)
+function nombreDiario(a) {
+  const ini = inicialesTer(S.terapeuta(a.terapeutaId));
+  return `${etiquetaCaso(a.caso.trim())}${ini ? ' ' + ini : ''} – S${S.numeroSesion(a)} – ${nombreTipo(a)} – ${fmtNum(a.fecha).replaceAll('/', '-')}`;
+}
+// Si cambian los números de sesión, se ponen al día los nombres de los diarios del caso
+async function renombrarDiarios(codigo) {
+  if (!G.conectado()) return;
+  for (const s of S.sesionesDeCaso(codigo)) {
+    if (!s.docId) continue;
+    const n = nombreDiario(s);
+    if (s.docNombre === n) continue;
+    try { await G.renombrar(s.docId, n); S.actualizar(() => { s.docNombre = n; }); } catch (e) { console.warn('No se pudo renombrar', e); }
+  }
+}
 async function crearDiario(id) {
   await google();
   const a = S.actividad(id);
   const codigo = a.caso.trim();
   const dir = await G.carpeta([RAIZ, 'Casos', etiquetaCaso(codigo)], S.datos().ajustes.carpetas);
-  const ini = inicialesTer(S.terapeuta(a.terapeutaId));
-  const nombre = `${etiquetaCaso(codigo)}${ini ? ' ' + ini : ''} – S${S.numeroSesion(a)} – ${nombreTipo(a)} – ${fmtNum(a.fecha).replaceAll('/', '-')}`;
+  const nombre = nombreDiario(a);
   let doc;
   try { doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
   catch { S.datos().ajustes.plantillaDiarioId = null; doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
@@ -202,7 +216,7 @@ async function crearDiario(id) {
     numero: S.numeroDiario(a), codigo, inicial: aliasDe(codigo), fecha: a.fecha, tipo: a.tipo, formato: a.formato,
     duracion: '1 h', terapeuta: S.terapeuta(a.terapeutaId)?.nombre, notas: a.notasCaliente,
   }));
-  S.actualizar(() => { a.docId = doc; });
+  S.actualizar(() => { a.docId = doc; a.docNombre = nombre; });
   return doc;
 }
 async function abrirNotas(boton, id) {
@@ -587,6 +601,8 @@ function vSesion(id) {
         <span class="ayuda">Solo el número. Las sesiones del mismo código se agrupan.</span></div>
       <div class="campo"><label for="ini-pac">Inicial del nombre del paciente <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="ini-pac" name="inicialPac" maxlength="3" value="${esc(aliasDe(a.caso))}" placeholder="p. ej. M" autocomplete="off" style="max-width:140px">
         <span class="ayuda">${icon('candado', 12)} Aparece tras el número en tu diario crítico. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></div>
+      <div class="campo"><label for="num-ses">Nº de sesión en este caso</label><input type="number" id="num-ses" name="numSesion" min="1" max="200" value="${a.caso ? S.numeroSesion(a) : 1}" style="max-width:140px">
+        <span class="ayuda">Se calcula solo. Cámbialo si el caso empezó antes de usar la app: las siguientes sesiones contarán desde aquí.</span></div>
       <div class="dos-col">
         <div class="campo"><label for="fecha">Fecha</label><input type="date" id="fecha" name="fecha" required value="${esc(a.fecha)}"></div>
         <div class="campo"><label for="hora">Hora</label><input type="time" id="hora" name="hora" value="${esc(a.hora)}"></div>
@@ -606,6 +622,15 @@ function vSesion(id) {
     mount(r) {
       montarSelectorTerapeuta(r);
       const f = r.querySelector('#f-sesion');
+      // Mientras no lo toques, el nº de sesión y la inicial siguen al código de caso que escribes
+      const numIn = r.querySelector('#num-ses'); const iniIn = r.querySelector('#ini-pac'); let numTocado = false; let iniTocada = false;
+      numIn.addEventListener('input', () => { numTocado = true; });
+      iniIn.addEventListener('input', () => { iniTocada = true; });
+      r.querySelector('#caso').addEventListener('input', (e) => {
+        const prueba = { ...a, caso: e.target.value.trim(), numSesion: undefined };
+        if (!numTocado) numIn.value = prueba.caso ? S.numeroSesion(prueba, { sinPropio: true }) : 1;
+        if (!iniTocada) iniIn.value = aliasDe(prueba.caso);
+      });
       let accion = 'guardar';
       f.querySelectorAll('button[name=accion]').forEach((b) => b.addEventListener('click', () => { accion = b.value; }));
       f.addEventListener('submit', (e) => {
@@ -617,6 +642,13 @@ function vSesion(id) {
         Object.assign(a, { tipo: v.tipo, formato: v.formato, caso: v.caso.trim(), fecha: v.fecha, hora: v.hora, terapeutaId: v.terapeutaId && v.terapeutaId !== '__nuevo' ? v.terapeutaId : null, notasCaliente: v.notasCaliente.trim() });
         a.estado = a.fecha > hoyISO() ? 'programada' : 'hecha';
         S.actualizar((s) => { if (nuevo) { s.actividades.push(a); delete borradores[id]; } });
+        // Nº de sesión puesto a mano: solo se guarda si es distinto del que sale solo
+        const num = Math.round(Number(v.numSesion)) || null;
+        const auto = S.numeroSesion(a, { sinPropio: true });
+        if ((num && num !== auto ? num : null) !== (a.numSesion || null)) {
+          S.actualizar(() => { if (num && num !== auto) a.numSesion = num; else delete a.numSesion; });
+        }
+        renombrarDiarios(a.caso).catch(() => {});
         const destino = a.estado === 'hecha' ? `#/caso/${encodeURIComponent(a.caso)}` : '#/agenda';
         if (accion === 'doc' && a.estado === 'hecha') {
           conCarga(f.querySelector('button[value=doc]'), async () => {
@@ -839,6 +871,18 @@ function vDiario() {
 }
 
 // ---------- Caso ----------
+function filaSesion(x) {
+  return {
+    n: S.numeroSesion(x), fecha: fmtNum(x.fecha), tipo: nombreTipo(x), formato: x.formato === 'online' ? 'online' : 'presencial',
+    terapeuta: S.terapeuta(x.terapeutaId)?.nombre || '',
+    estado: x.estado !== 'hecha' ? 'Planificada' : [x.docId ? 'Diario' : 'Sin diario', x.enviado ? 'enviado' : '', x.feedback?.length ? 'feedback' : ''].filter(Boolean).join(' · '),
+    enlace: x.docId ? G.enlaceDoc(x.docId) : '',
+  };
+}
+function textoListaCaso(codigo) {
+  const filas = S.sesionesDeCaso(codigo).map(filaSesion);
+  return `${D.codigoPaciente(codigo, aliasDe(codigo))} · ${filas.length} sesiones\n` + filas.map((f) => `Sesión ${f.n} · ${f.fecha} · ${f.tipo} (${f.formato})${f.terapeuta ? ' · ' + f.terapeuta : ''} · ${f.estado}`).join('\n');
+}
 function vCaso(codigo) {
   codigo = decodeURIComponent(codigo);
   const ss = S.sesionesDeCaso(codigo);
@@ -871,6 +915,9 @@ function vCaso(codigo) {
     <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Inicial del paciente</label>
       <div class="dos-col" style="grid-template-columns:1fr auto"><input type="text" id="alias" maxlength="12" value="${esc(aliasDe(codigo))}" placeholder="p. ej. M" autocomplete="off"><button class="btn">Guardar</button></div>
       <span class="mini suave" style="line-height:1.4">${icon('candado', 12)} Aparece tras el número en los diarios críticos que crees. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></form>
+    <section class="tarjeta" style="gap:10px"><div class="fila-entre"><span style="font-size:16px;font-weight:700">Lista de sesiones</span><span class="pequeno suave">${ss.length}</span></div>
+      <div class="lista-ses">${ss.map((x) => { const f = filaSesion(x); return `<div class="fila-ses ${x.estado !== 'hecha' ? 'planificada' : ''}"><b>S${f.n}</b><span>${esc(f.fecha)}</span><span>${esc(f.tipo)} · ${esc(f.formato)}</span><span class="suave">${esc(f.estado)}</span></div>`; }).join('')}</div>
+      <div class="botones"><button class="btn" data-act="lista-copiar" data-caso="${esc(codigo)}">Copiar lista</button><button class="btn" data-act="lista-doc" data-caso="${esc(codigo)}">${icon('doc', 16)}Crear en Google Docs</button></div></section>
     <div class="seccion">${tarjetas}</div></div>`,
     mount(r) {
       r.querySelector('#f-alias').addEventListener('submit', (e) => { e.preventDefault(); ponerAlias(codigo, r.querySelector('#alias').value.trim()); toast('Alias guardado en este dispositivo.'); render(); });
@@ -1082,7 +1129,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.4.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.5.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1642,6 +1689,21 @@ const acciones = {
     location.hash = '#/inicio'; location.reload();
   }),
 };
+Object.assign(acciones, {
+  'lista-copiar': async (b) => {
+    const t = textoListaCaso(b.dataset.caso);
+    try { await navigator.clipboard.writeText(t); toast('Lista copiada. Pégala donde la necesites.'); }
+    catch { abrirModal(`<h2>Lista de sesiones</h2><textarea rows="10" readonly style="font-size:14px">${esc(t)}</textarea><div class="botones"><button class="btn primario" data-cerrar>Cerrar</button></div>`); }
+  },
+  'lista-doc': (b) => conCarga(b, async () => {
+    await google();
+    const codigo = b.dataset.caso; const filas = S.sesionesDeCaso(codigo).map(filaSesion);
+    const html = D.listaSesiones(D.codigoPaciente(codigo, aliasDe(codigo)), filas);
+    const dir = await G.carpeta([RAIZ, 'Casos', etiquetaCaso(codigo)], S.datos().ajustes.carpetas);
+    const doc = await G.docDesdeHtml(`${etiquetaCaso(codigo)} – Lista de sesiones – ${fmtNum(hoyISO()).replaceAll('/', '-')}`, html, dir);
+    toast('Lista creada en tu Drive.', { enlace: G.enlaceDoc(doc), texto: 'Abrir', ms: 12000 });
+  }),
+});
 app.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
   if (b && acciones[b.dataset.act]) { e.preventDefault(); acciones[b.dataset.act](b, e); }

@@ -291,3 +291,8 @@ dialog#modal::backdrop { background: rgba(18, 21, 48, 0.5); }
   .es-escritorio .pantalla { padding-left: 28px; padding-right: 28px; }
   .semana-dias { gap: 5px; }
 }
+.lista-ses { display: flex; flex-direction: column; }
+.fila-ses { display: grid; grid-template-columns: 42px 88px minmax(0, 1fr); gap: 2px 10px; padding: 8px 2px; border-top: 1px solid var(--linea); font-size: 14px; }
+.fila-ses:first-child { border-top: 0; }
+.fila-ses > .suave { grid-column: 2 / -1; font-size: 13px; }
+.fila-ses.planificada { opacity: .6; }

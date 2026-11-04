@@ -148,6 +148,9 @@ export async function borrarArchivo(id) {
 export async function copiar(id, nombre, padre) {
   return (await json(`${DRIVE}/files/${id}/copy?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, parents: [padre] }) })).id;
 }
+export async function renombrar(id, nombre) {
+  await json(`${DRIVE}/files/${id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre }) });
+}
 export async function descargarArchivo(id) {
   return (await api(`${DRIVE}/files/${id}?alt=media`)).arrayBuffer();
 }

@@ -6,13 +6,28 @@ const estilo = 'font-family:Arial,sans-serif;font-size:11pt;';
 const guia = (t) => `<p style="color:#666666"><i>${t}</i></p>`;
 
 // La plantilla predeterminada del diario crítico es plantillas/diario-critico.docx (marcas {{…}}).
+// Código del paciente en los documentos: CASO-005M (número + inicial, sin espacios)
+export function codigoPaciente(codigo, inicial) {
+  let c = (codigo || '').trim().toUpperCase().replace(/^CASO[\s\-_.·]*/, '');
+  return `CASO-${c}${(inicial || '').trim().toUpperCase()}`;
+}
+
 export function marcasDiario({ numero, codigo, inicial, fecha, tipo, formato, duracion, terapeuta, notas }) {
-  const paciente = `${codigo}${inicial ? ' ' + inicial.toUpperCase() : ''}`;
+  const paciente = codigoPaciente(codigo, inicial);
   return {
     CASO: numero, CODIGO: paciente, PACIENTE: paciente, FECHA: fmtNum(fecha), TIPO: TIPOS[tipo]?.nombre || tipo,
     FORMATO: formato === 'online' ? 'online' : 'presencial', DURACION: duracion, TERAPEUTA: terapeuta || '—',
     NOTAS: notas || '—',
   };
+}
+
+// Lista de sesiones de un caso (en texto normal, como la plantilla del diario)
+export function listaSesiones(paciente, filas) {
+  const td = 'style="border:1px solid #999999;padding:4px 6px"';
+  return `<html><body style="${estilo}"><p><b>Paciente:</b> ${esc(paciente)}<br><b>Sesiones:</b> ${filas.length}</p>
+<table style="border-collapse:collapse"><tr>${['Sesión', 'Fecha', 'Tipo', 'Formato', 'Terapeuta', 'Estado', 'Diario'].map((h) => `<td ${td}><b>${h}</b></td>`).join('')}</tr>
+${filas.map((f) => `<tr><td ${td}>${f.n}</td><td ${td}>${esc(f.fecha)}</td><td ${td}>${esc(f.tipo)}</td><td ${td}>${esc(f.formato)}</td><td ${td}>${esc(f.terapeuta || '—')}</td><td ${td}>${esc(f.estado)}</td><td ${td}>${f.enlace ? `<a href="${esc(f.enlace)}">Abrir</a>` : '—'}</td></tr>`).join('')}
+</table></body></html>`;
 }
 
 export function documentoNotas(titulo, fecha) {

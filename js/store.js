@@ -232,10 +232,17 @@ export function sesionesDeCaso(codigo) {
     .sort((x, y) => (x.fecha + (x.hora || '')).localeCompare(y.fecha + (y.hora || '')));
 }
 
-export function numeroSesion(a) {
+// Nº de sesión dentro del caso. Si en una sesión se ha puesto el número a mano,
+// las siguientes siguen contando desde ese número.
+export function numeroSesion(a, { sinPropio = false } = {}) {
   const ss = sesionesDeCaso(a.caso?.trim()).filter((s) => s.estado === 'hecha' || s.id === a.id);
-  const i = ss.findIndex((s) => s.id === a.id);
-  return i < 0 ? ss.length + 1 : i + 1;
+  let n = 0;
+  for (const s of ss) {
+    const propio = s.id === a.id && sinPropio ? null : Number(s.numSesion) || null;
+    n = propio || n + 1;
+    if (s.id === a.id) return n;
+  }
+  return n + 1;
 }
 
 // Nº correlativo de diario crítico (todas las sesiones de espejo y coterapia)
