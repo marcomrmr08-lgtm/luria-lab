@@ -129,6 +129,22 @@ export async function subirArchivo(nombre, blob, tipo, padre, convertirA) {
   const meta = { name: nombre, parents: [padre], ...(convertirA ? { mimeType: convertirA } : {}) };
   return (await multipart(meta, blob, tipo)).id;
 }
+// Subida de archivos grandes (audios y vídeos) en dos pasos
+export async function subirGrande(nombre, blob, tipo, padre) {
+  if (blob.size < 4_000_000) return subirArchivo(nombre, blob, tipo, padre);
+  const r = await api(`${SUBIDA}?uploadType=resumable&fields=id`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': tipo, 'X-Upload-Content-Length': String(blob.size) },
+    body: JSON.stringify({ name: nombre, parents: [padre] }),
+  });
+  const destino = r.headers.get('Location');
+  if (!destino) throw new Error('Google no devolvió la dirección de subida. Inténtalo de nuevo.');
+  const r2 = await fetch(destino, { method: 'PUT', headers: { 'Content-Type': tipo }, body: blob });
+  if (!r2.ok) throw new Error(`No se pudo subir el archivo (${r2.status}).`);
+  return (await r2.json()).id;
+}
+export async function borrarArchivo(id) {
+  try { await api(`${DRIVE}/files/${id}`, { method: 'DELETE' }); } catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; }
+}
 export async function copiar(id, nombre, padre) {
   return (await json(`${DRIVE}/files/${id}/copy?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, parents: [padre] }) })).id;
 }

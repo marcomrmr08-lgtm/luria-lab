@@ -186,3 +186,37 @@ dialog#modal::backdrop { background: rgba(18, 21, 48, 0.5); }
 .dias label.es-hoy { border-color: var(--verde); border-width: 2px; }
 .dias .punto { position: absolute; bottom: 5px; width: 5px; height: 5px; border-radius: 3px; background: var(--azul); }
 .dias input:checked + label .punto { background: #fff; }
+
+/* ---------- Hexaflex ---------- */
+:root { --abierto: #2A6E63; --abierto-cl: #D5E7E1; --centrado: #3B5888; --centrado-cl: #DCE3EF; --comprometido: #94561E; --comprometido-cl: #F1E3D2; }
+.hexa { position: relative; width: 100%; max-width: 380px; aspect-ratio: 1; margin: 4px auto; }
+.hexa svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hexa svg line { stroke: var(--linea2); stroke-width: 0.35; }
+.hexa-centro, .hexa-nodo { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transition: transform .15s ease, box-shadow .15s ease; }
+.hexa-centro { left: 50%; top: 50%; width: 29%; aspect-ratio: 1; background: var(--verde); color: #fff; font-size: 13px; font-weight: 700; line-height: 1.2; padding: 8px; }
+.hexa-nodo { width: 25%; aspect-ratio: 1; background: var(--superficie); border: 3px solid; color: var(--tinta); font-size: 12px; font-weight: 700; line-height: 1.15; padding: 6px; gap: 5px; box-shadow: 0 2px 8px rgba(20,24,70,0.06); }
+.hexa-nodo:hover, .hexa-nodo:focus-visible, .hexa-centro:hover { transform: translate(-50%, -50%) scale(1.06); box-shadow: 0 6px 16px rgba(20,24,70,0.14); }
+.hexa-nodo.pilar-abierto { border-color: var(--abierto); } .hexa-nodo.pilar-centrado { border-color: var(--centrado); } .hexa-nodo.pilar-comprometido { border-color: var(--comprometido); }
+@media (max-width: 360px) { .hexa-nodo { font-size: 10.5px; } .hexa-centro { font-size: 11px; } }
+
+.niveles { display: inline-flex; gap: 4px; }
+.niveles i { width: 9px; height: 9px; border-radius: 5px; background: var(--linea2); }
+.niveles i.on { background: var(--exito); }
+.niveles.en-nodo i { width: 7px; height: 7px; }
+.pilar-abierto .niveles i.on { background: var(--abierto); } .pilar-centrado .niveles i.on { background: var(--centrado); } .pilar-comprometido .niveles i.on { background: var(--comprometido); }
+
+.insignia.pilar-abierto { background: var(--abierto-cl); color: var(--abierto); }
+.insignia.pilar-centrado { background: var(--centrado-cl); color: var(--centrado); }
+.insignia.pilar-comprometido { background: var(--comprometido-cl); color: var(--comprometido); }
+.pilar-txt-abierto { color: var(--abierto); } .pilar-txt-centrado { color: var(--centrado); } .pilar-txt-comprometido { color: var(--comprometido); }
+.pilar-fila { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 14px; }
+.pilar-fila.pilar-abierto { background: var(--abierto-cl); } .pilar-fila.pilar-abierto b { color: var(--abierto); }
+.pilar-fila.pilar-centrado { background: var(--centrado-cl); } .pilar-fila.pilar-centrado b { color: var(--centrado); }
+.pilar-fila.pilar-comprometido { background: var(--comprometido-cl); } .pilar-fila.pilar-comprometido b { color: var(--comprometido); }
+.pilar-borde.pilar-abierto { border-top: 4px solid var(--abierto); } .pilar-borde.pilar-centrado { border-top: 4px solid var(--centrado); } .pilar-borde.pilar-comprometido { border-top: 4px solid var(--comprometido); }
+
+.senal { background: var(--superficie); border: 1px solid var(--linea); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.senal-frase { font-size: 15px; font-weight: 600; }
+.nivel-num { width: 26px; height: 26px; border-radius: 13px; border: 2px solid var(--linea2); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--suave); }
+.nivel.hecho .nivel-num { background: var(--exito); border-color: var(--exito); color: #fff; }
+.medio { display: flex; gap: 8px; align-items: center; background: var(--fondo); border-radius: 12px; padding: 6px 10px; min-height: 48px; }

@@ -1,6 +1,7 @@
 // Estado de la app: se guarda siempre en este dispositivo y, si hay conexión con
 // Google, se sincroniza con un archivo oculto en el Drive del alumno.
 import { TUTORIAS_METODOLOGICAS, SEMINARIOS, HORARIO_TM, TIPOS_HOJA, FICHAS_EJEMPLO } from './calendario.js';
+import { FICHAS_BASE, BIBLIO_BASE } from './hexaflexBase.js';
 
 const CLAVE = 'luria-lab-v1';
 let estado = null;
@@ -55,6 +56,23 @@ function completar(s) {
   s.hexaflex.modelo = s.hexaflex.modelo || {}; s.hexaflex.procesos = s.hexaflex.procesos || {};
   if (!Array.isArray(s.hexaflex.fichas)) s.hexaflex.fichas = [];
   if (!s.hexaflex.ejemplos) { s.hexaflex.fichas.push(...FICHAS_EJEMPLO.map((f) => ({ ...f }))); s.hexaflex.ejemplos = true; }
+  // Fichas de «Hexaflex en práctica» (una vez): sustituyen a los ejemplos que coinciden
+  if (!s.hexaflex.base2) {
+    const borr = new Set(s.borrados || []);
+    s.hexaflex.fichas = s.hexaflex.fichas.filter((f) => !(f.ejemplo && ['ej-hojas', 'ej-cuerda'].includes(f.id)));
+    const ids = new Set(s.hexaflex.fichas.map((f) => f.id));
+    for (const f of FICHAS_BASE) if (!ids.has(f.id) && !borr.has(f.id)) s.hexaflex.fichas.push(JSON.parse(JSON.stringify(f)));
+    s.hexaflex.base2 = true;
+  }
+  s.hexaflex.notas = s.hexaflex.notas || {};
+  // Lo escrito en la versión anterior (qué es, cómo se ve, qué busca) pasa a «Mis notas»
+  for (const [k, v] of Object.entries(s.hexaflex.procesos)) {
+    const txt = [v.que, v.falta, v.busca, v.fuente].filter(Boolean).join('\n\n');
+    if (txt && !s.hexaflex.notas[k]) s.hexaflex.notas[k] = txt;
+  }
+  s.hexaflex.procesos = {};
+  for (const f of s.hexaflex.fichas) { f.audios = f.audios || []; f.videos = f.videos || []; f.exp = f.exp || {}; f.notasExp = f.notasExp || []; }
+  if (!Array.isArray(s.biblio)) s.biblio = BIBLIO_BASE.map((b) => ({ ...b }));
   if (!s.pdp) s.pdp = { fuertes: '', mejora: '', objetivos: [], revisiones: {} };
   if (!Array.isArray(s.pdp.objetivos)) s.pdp.objetivos = [];
   s.pdp.revisiones = s.pdp.revisiones || {};
@@ -133,11 +151,14 @@ export function fusionar(local, remoto) {
   const fichas = new Map(R.hexaflex.fichas.filter((f) => !borrados.has(f.id)).map((f) => [f.id, f]));
   for (const f of L.hexaflex.fichas) if (!borrados.has(f.id) && (localMasNuevo || !fichas.has(f.id))) fichas.set(f.id, f);
   const elegir = (l, r) => (conTexto(l) && conTexto(r) ? (localMasNuevo ? l : r) : conTexto(l) ? l : r);
-  const hexaflex = { ...R.hexaflex, ...L.hexaflex, modelo: elegir(L.hexaflex.modelo, R.hexaflex.modelo), procesos: { ...R.hexaflex.procesos, ...Object.fromEntries(Object.entries(L.hexaflex.procesos).filter(([k, v]) => conTexto(v) && (localMasNuevo || !conTexto(R.hexaflex.procesos[k])))) }, fichas: [...fichas.values()] };
+  const notas = { ...R.hexaflex.notas }; for (const [k, v] of Object.entries(L.hexaflex.notas || {})) if (v && (localMasNuevo || !notas[k])) notas[k] = v;
+  const biblio = new Map(R.biblio.filter((b) => !borrados.has(b.id)).map((b) => [b.id, b]));
+  for (const b of L.biblio) if (!borrados.has(b.id) && (localMasNuevo || !biblio.has(b.id))) biblio.set(b.id, b);
+  const hexaflex = { ...R.hexaflex, ...L.hexaflex, notas, modelo: elegir(L.hexaflex.modelo, R.hexaflex.modelo), procesos: { ...R.hexaflex.procesos, ...Object.fromEntries(Object.entries(L.hexaflex.procesos).filter(([k, v]) => conTexto(v) && (localMasNuevo || !conTexto(R.hexaflex.procesos[k])))) }, fichas: [...fichas.values()] };
   const pdp = elegir(L.pdp, R.pdp);
   return {
     ...R, ...L,
-    hexaflex, pdp,
+    hexaflex, pdp, biblio: [...biblio.values()],
     updatedAt: Date.now(),
     ajustes, informes,
     actividades: [...porId.values()],
