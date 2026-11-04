@@ -1061,7 +1061,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.1.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.2.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1229,12 +1229,9 @@ function vHxProceso(k) {
       <section class="tarjeta"><label for="n-${k}" class="tipo c-morado" style="font-size:13px">Mis notas de Hayes</label>
         <textarea id="n-${k}" data-nota="${k}" rows="6" placeholder="Completa o corrige con tu lectura del libro" style="border:0;padding:0">${esc(HX().notas[k])}</textarea>
         <span class="mini suave">Se guarda solo. <span class="guardado c-verde" style="font-weight:700"></span></span></section>`;
-  } else if (tab === 'fichas') {
+  } else {
     cuerpo = `<div class="fila-entre"><span class="pequeno suave">${fichas.length} ficha${fichas.length === 1 ? '' : 's'}</span><a href="#/hexaflex/editar/nueva?p=${k}" class="btn texto">${icon('mas', 18)} Añadir</a></div>
       <div class="seccion">${fichas.map(tarjetaFicha).join('') || '<p class="vacio">Aún no hay fichas de este proceso.</p>'}</div>`;
-  } else {
-    cuerpo = `<div class="tarjeta"><b>Ejercicios interactivos</b><p class="pequeno suave" style="line-height:1.5">Los ejercicios de «Hexaflex en práctica» llegan en la próxima actualización. Mientras tanto, practícalos desde su ficha en tres niveles: escrito, audio y role play.</p></div>
-      <div class="seccion">${fichas.filter((f) => f.base).map(tarjetaFicha).join('')}</div>`;
   }
   const tb = (v, tx) => `<button class="seg-btn ${tab === v ? 'activo' : ''}" data-act="tab-hx" data-k="${k}" data-v="${v}" role="tab" aria-selected="${tab === v}">${tx}</button>`;
   return {
@@ -1242,7 +1239,7 @@ function vHxProceso(k) {
     <div class="item-texto"><span class="tipo pilar-txt-${PILAR[k]}">${esc(t.pilar || '')} · ${esc(p.nombre)}</span><h1 class="titulo">${esc(t.lema || p.nombre)}</h1>
       <p class="texto-largo" style="color:var(--gris);font-size:15px">${esc(t.intro || '')}</p></div>
     <div class="fila-entre tarjeta" style="padding:12px 14px;flex-direction:row"><span class="pequeno" style="font-weight:700">Tu nivel en ${esc(p.nombre.toLowerCase())}</span><span style="display:flex;gap:10px">${NIVELES.map(([nk, nt]) => `<span class="mini ${niv[nk] ? 'c-verde' : 'suave'}" style="font-weight:700">${niv[nk] ? '✓ ' : ''}${nt}</span>`).join('')}</span></div>
-    <div class="segmentado" role="tablist">${tb('teoria', 'Teoría')}${tb('fichas', `Fichas (${fichas.length})`)}${tb('practicar', 'Practicar')}</div>
+    <div class="segmentado" role="tablist">${tb('teoria', 'Teoría')}${tb('fichas', `Fichas (${fichas.length})`)}</div>
     ${cuerpo}</div>`,
     mount(r) { autoguardarNotas(r, null, (kk, v) => { HX().notas[kk] = v; }); },
   };

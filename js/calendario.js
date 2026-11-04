@@ -62,25 +62,5 @@ export const PROCESOS = [
 export const TIPOS_FICHA = ['Metáfora', 'Ejercicio experiencial', 'Pregunta', 'Tarea para casa'];
 
 // Fichas de ejemplo, redactadas para Luria Lab. Revísalas y adáptalas con tu lectura de Hayes.
-export const FICHAS_EJEMPLO = [
-  { id: 'ej-pasajeros', ejemplo: true, nombre: 'Pasajeros en el autobús', tipo: 'Metáfora', procesos: ['defusion', 'aceptacion', 'valores', 'accion'], principal: 'defusion',
-    paraQue: 'Ver los pensamientos y emociones difíciles como pasajeros que pueden ir en el autobús mientras la persona sigue conduciendo hacia lo que le importa.',
-    cuando: 'Cuando la persona deja de hacer cosas importantes para no sentir malestar o para que ciertos pensamientos «se callen».',
-    guion: 'Eres el conductor de un autobús que va en una dirección que te importa. Por el camino suben pasajeros molestos (pensamientos, recuerdos, sensaciones) que te gritan que gires o pares. Puedes desviarte para que se callen, pero entonces no llegas a donde querías. ¿Qué pasaría si dejas que sigan dentro, gritando, mientras tú conduces hacia tu destino?',
-    variaciones: '', fuente: 'Ejemplo de Luria Lab · revisar con tu bibliografía', exp: {}, notasExp: [] },
-  { id: 'ej-hojas', ejemplo: true, nombre: 'Hojas en el río', tipo: 'Ejercicio experiencial', procesos: ['defusion', 'presente'], principal: 'defusion',
-    paraQue: 'Practicar observar los pensamientos a medida que aparecen, sin engancharse a ellos ni apartarlos.',
-    cuando: 'Cuando la persona se queda atrapada en la rumia o se toma sus pensamientos como verdades literales.',
-    guion: 'Con los ojos cerrados, imagina un río con hojas que bajan flotando. Cada vez que aparezca un pensamiento, colócalo en una hoja y déjalo pasar a su ritmo. Si te descubres enganchado a uno, date cuenta con amabilidad y vuelve a la orilla.',
-    variaciones: '', fuente: 'Ejemplo de Luria Lab · revisar con tu bibliografía', exp: {}, notasExp: [] },
-  { id: 'ej-cuerda', ejemplo: true, nombre: 'Tirar de la cuerda con el monstruo', tipo: 'Metáfora', procesos: ['aceptacion'], principal: 'aceptacion',
-    paraQue: 'Mostrar el coste de luchar contra el malestar y la alternativa de soltar la cuerda.',
-    cuando: 'Cuando la persona dedica mucha energía a controlar o eliminar la ansiedad u otras emociones.',
-    guion: 'Imagina que tiras de una cuerda contra un monstruo, con un abismo en medio. Cuanto más tiras, más tira él. ¿Y si en lugar de ganar la pelea, sueltas la cuerda? El monstruo sigue ahí, pero tus manos quedan libres para otras cosas.',
-    variaciones: '', fuente: 'Ejemplo de Luria Lab · revisar con tu bibliografía', exp: {}, notasExp: [] },
-  { id: 'ej-epitafio', ejemplo: true, nombre: '¿Qué te gustaría que dijeran de ti?', tipo: 'Ejercicio experiencial', procesos: ['valores'], principal: 'valores',
-    paraQue: 'Contactar con lo que de verdad le importa a la persona, más allá de los objetivos concretos.',
-    cuando: 'Cuando la persona no sabe hacia dónde ir o vive en función de evitar el malestar.',
-    guion: 'Imagina que, dentro de muchos años, alguien que te quiere habla de ti en una celebración. ¿Qué te gustaría que contara de cómo has vivido, de cómo has tratado a los demás, de qué has defendido?',
-    variaciones: '', fuente: 'Ejemplo de Luria Lab · revisar con tu bibliografía', exp: {}, notasExp: [] },
-];
+// Los ejemplos ahora vienen de hexaflexBase.js (una ficha por proceso)
+export const FICHAS_EJEMPLO = [];

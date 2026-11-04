@@ -1,5 +1,5 @@
 // Teoría base y fichas de «Hexaflex en práctica» (material de Marco Martínez).
-// Generado a partir de su web; la app las trae precargadas y se pueden editar.
+// Generado a partir de su web. La app trae una ficha de ejemplo por proceso; el resto las crea el alumno.
 export const TEORIA = {
  "presente": {
   "marco": [
@@ -199,53 +199,8 @@ export const FICHAS_BASE = [
   "exp": {},
   "notasExp": [],
   "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-5-4-3-2-1",
-  "base": true,
-  "nombre": "5 · 4 · 3 · 2 · 1",
-  "tipo": "Ejercicio experiencial",
-  "procesos": [
-   "presente"
-  ],
-  "principal": "presente",
-  "paraQue": "Anclar la atención en el entorno a través de los sentidos cuando la persona está arrastrada por una emoción o un pensamiento.",
-  "cuando": "En momentos de alta activación en sesión, o como recurso fuera de ella. Útil cuando la respiración no es un ancla segura.",
-  "precauciones": "Es una técnica de anclaje de uso general, no exclusiva de ACT. Presentarla como forma de estar presente mientras la emoción está, no para hacerla desaparecer.",
-  "guion": "Pedir que nombre en voz alta cinco cosas que ve, cuatro que nota en el cuerpo o al tacto, tres que oye, dos que huele y una que saborea. Ir despacio y con curiosidad por los detalles.",
-  "errores": "• Hacerlo deprisa, como una lista que hay que terminar.\n• No volver después a lo que se estaba trabajando.",
-  "variaciones": "Versión corta con tres sentidos. Combinarla con el «echar el ancla» de Harris: notar pensamientos y emociones, conectar con el cuerpo y volver a la tarea.",
-  "roleplay": "El «paciente» entra en el role play con un pensamiento muy absorbente. El terapeuta practica introducir el ejercicio de forma natural, sin cortar la sesión.",
-  "fuente": "Técnica de anclaje sensorial de uso general. Harris, R. (2019). ACT Made Simple, 2.ª ed. (echar el ancla).",
-  "libroId": "lib-harris",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-darle-forma-a-la-emocion",
-  "base": true,
-  "nombre": "Darle forma a la emoción",
-  "tipo": "Ejercicio experiencial",
-  "procesos": [
-   "aceptacion"
-  ],
-  "principal": "aceptacion",
-  "paraQue": "Pasar de luchar contra una emoción a observarla como experiencia física, con curiosidad, y hacerle sitio.",
-  "cuando": "Cuando la emoción aparece en sesión o la persona la describe de forma abstracta («estoy fatal»). Útil tras la desesperanza creativa.",
-  "precauciones": "Ir despacio y ofrecer control sobre el ritmo. Con emociones muy intensas o historia de trauma, empezar por emociones moderadas. Dejar claro que no se busca que la emoción cambie.",
-  "guion": "Localizar la emoción en el cuerpo. Describirla como un objeto: forma, tamaño, color, temperatura, peso, movimiento. Respirar hacia ella y alrededor de ella, haciéndole sitio. Explorar qué ha notado.",
-  "errores": "• Preguntar al final si ha bajado, convirtiéndolo en técnica de control.\n• Llenar el ejercicio de instrucciones y no dejar silencio.",
-  "variaciones": "Sacar el objeto fuera del cuerpo, dejarlo delante y volver a meterlo. Dibujarlo en papel.",
-  "roleplay": "Practicar con una emoción real de baja intensidad. El observador anota si el lenguaje del terapeuta es de curiosidad o de control.",
-  "fuente": "Hayes, S. C., Strosahl, K. D. y Wilson, K. G. Terapia de aceptación y compromiso: proceso y práctica del cambio consciente, parte 3 (capítulo de aceptación). Harris, R. (2009). ACT Made Simple (expansión).",
-  "libroId": "lib-hayes",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
+  "videos": [],
+  "ejemplo": true
  },
  {
   "id": "hx-tira-y-afloja-con-el-monstruo",
@@ -268,7 +223,8 @@ export const FICHAS_BASE = [
   "exp": {},
   "notasExp": [],
   "audios": [],
-  "videos": []
+  "videos": [],
+  "ejemplo": true
  },
  {
   "id": "hx-estoy-teniendo-el-pensamiento-de-que",
@@ -291,53 +247,8 @@ export const FICHAS_BASE = [
   "exp": {},
   "notasExp": [],
   "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-repeticion-de-la-palabra",
-  "base": true,
-  "nombre": "Repetición de la palabra",
-  "tipo": "Ejercicio experiencial",
-  "procesos": [
-   "defusion"
-  ],
-  "principal": "defusion",
-  "paraQue": "Experimentar de forma directa que el significado de una palabra depende del contexto: repetida en voz alta, pierde funciones y se queda en sonido.",
-  "cuando": "Con etiquetas o palabras clave muy cargadas («inútil», «loco», «débil»). Funciona bien como experiencia, antes de cualquier explicación teórica.",
-  "precauciones": "Puede resultar ridículo o invalidante si no hay alianza suficiente. Hacerlo primero con una palabra neutra («leche») y después con la palabra del paciente. Valorar que no lo viva como burla.",
-  "guion": "Pedir que diga la palabra una vez y note lo que evoca. Repetirla juntos, en voz alta y rápido, entre 20 y 45 segundos. Parar y explorar qué ha pasado con el significado y con el malestar.",
-  "errores": "• Hacerlo muy pocos segundos, sin dar tiempo a que el efecto aparezca.\n• Convertir la bajada del malestar en el objetivo explícito.",
-  "variaciones": "Cantarla con una melodía conocida, decirla con voz de dibujo animado, decirla muy despacio.",
-  "roleplay": "Practicar primero la versión con «leche» hasta guiarla con naturalidad. Registrar malestar y credibilidad antes y después.",
-  "fuente": "Técnica descrita por Titchener (1916). Estudiada en Masuda, A. y cols. (2004), Behaviour Research and Therapy. Hayes, S. C., Strosahl, K. D. y Wilson, K. G. Terapia de aceptación y compromiso: proceso y práctica del cambio consciente, parte 3.",
-  "libroId": "lib-hayes",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-hojas-en-el-rio",
-  "base": true,
-  "nombre": "Hojas en el río",
-  "tipo": "Ejercicio experiencial",
-  "procesos": [
-   "defusion"
-  ],
-  "principal": "defusion",
-  "paraQue": "Entrenar la observación del flujo de pensamientos sin engancharse a ellos, y detectar el momento de fusión (cuando uno «se sube» a la hoja).",
-  "cuando": "Con rumiación o preocupación. Bien como práctica en casa una vez explicado en sesión. Une defusión y contacto con el momento presente.",
-  "precauciones": "Si el paciente intenta «tirar» los pensamientos al río o librarse de ellos, el ejercicio se convierte en evitación. Aclarar que se trata de observar, no de deshacerse.",
-  "guion": "Inducción breve con respiración. Imagen del río y de las hojas. Poner cada pensamiento en una hoja y dejar que siga su curso. Volver a la orilla cuando se note que uno se ha ido con un pensamiento. Cerrar preguntando qué pensamientos le costó más soltar.",
-  "errores": "• Guiar demasiado y no dejar silencio.\n• No explorar los momentos en que la persona «se fue» con un pensamiento, que es la parte más útil.",
-  "variaciones": "Nubes en el cielo, vagones de un tren, coches pasando por una calle. Versión corta de 2 minutos para inicio de sesión.",
-  "roleplay": "Grabarse guiándolo y revisar ritmo de voz, duración de silencios y si el guion empuja a «soltar».",
-  "fuente": "Ejercicio clásico de la literatura ACT. Hayes, S. C., Strosahl, K. D. y Wilson, K. G. Terapia de aceptación y compromiso: proceso y práctica del cambio consciente, parte 3. Harris, R. (2009). ACT Made Simple.",
-  "libroId": "lib-hayes",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
+  "videos": [],
+  "ejemplo": true
  },
  {
   "id": "hx-el-observador",
@@ -360,53 +271,8 @@ export const FICHAS_BASE = [
   "exp": {},
   "notasExp": [],
   "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-el-tablero-de-ajedrez",
-  "base": true,
-  "nombre": "El tablero de ajedrez",
-  "tipo": "Metáfora",
-  "procesos": [
-   "yo"
-  ],
-  "principal": "yo",
-  "paraQue": "Mostrar con una metáfora que la lucha entre pensamientos «buenos» y «malos» no tiene fin, y presentar la posición del tablero que contiene las piezas.",
-  "cuando": "Cuando la persona intenta contrarrestar sus pensamientos negativos con positivos de forma agotadora.",
-  "precauciones": "Aclarar que el tablero no es indiferente ni frío: está en contacto con todas las piezas. Evitar que se convierta en «debería no sentir nada».",
-  "guion": "Presentar las piezas negras (lo que hunde) y las blancas (lo que defiende). Explorar qué pasa cuando las blancas ganan terreno. Preguntar qué es el tablero y qué relación tiene con las piezas.",
-  "errores": "• Usar la metáfora para explicar teoría en lugar de explorar.\n• Presentar al tablero como alguien que no siente nada.",
-  "variaciones": "Usar un tablero físico o una hoja de papel con las piezas escritas por el paciente. Metáfora del cielo y las nubes.",
-  "roleplay": "El «paciente» escribe sus piezas en papel. El terapeuta practica la metáfora con las piezas reales del compañero.",
-  "fuente": "Hayes, S. C., Strosahl, K. D. y Wilson, K. G. Terapia de aceptación y compromiso: proceso y práctica del cambio consciente, parte 3. Hayes, S. C., Strosahl, K. D. y Wilson, K. G. (1999). Acceptance and Commitment Therapy.",
-  "libroId": "lib-hayes",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-clasificar-tarjetas-de-valores",
-  "base": true,
-  "nombre": "Clasificar tarjetas de valores",
-  "tipo": "Ejercicio experiencial",
-  "procesos": [
-   "valores"
-  ],
-  "principal": "valores",
-  "paraQue": "Ayudar a contactar con valores de forma concreta y comenzar a priorizarlos sin necesidad de definirlos en abstracto.",
-  "cuando": "En las primeras fases del trabajo con valores, sobre todo con personas que dicen no saber qué quieren.",
-  "precauciones": "Las tarjetas pueden sesgar hacia valores socialmente deseables. Preguntar por ejemplos de conducta de cada valor elegido. No juzgar valores que no compartimos.",
-  "guion": "Clasificar las tarjetas en tres montones. Elegir los más importantes. Para cada uno, preguntar cómo se vería en una conducta concreta y cuándo fue la última vez que actuó así.",
-  "errores": "• Quedarse en la lista sin bajar a conductas.\n• Confirmar o corregir los valores del paciente.",
-  "variaciones": "Tarjetas en papel, con montones físicos. Limitar a cinco valores muy importantes. Añadir tarjetas en blanco para valores propios.",
-  "roleplay": "Ambos hacen el ejercicio de verdad. Después uno guía al otro en la pregunta por la conducta concreta. Encaja con los ejercicios de clarificación de valores en uno mismo.",
-  "fuente": "LeJeune, J. y Luoma, J. Valores en terapia. Adaptación de la clasificación de tarjetas de valores de Miller, W. R. y cols. (2001).",
-  "libroId": "lib-lejeune",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
+  "videos": [],
+  "ejemplo": true
  },
  {
   "id": "hx-la-diana",
@@ -429,7 +295,8 @@ export const FICHAS_BASE = [
   "exp": {},
   "notasExp": [],
   "audios": [],
-  "videos": []
+  "videos": [],
+  "ejemplo": true
  },
  {
   "id": "hx-el-punto-de-eleccion",
@@ -452,30 +319,8 @@ export const FICHAS_BASE = [
   "exp": {},
   "notasExp": [],
   "audios": [],
-  "videos": []
- },
- {
-  "id": "hx-mi-proximo-paso",
-  "base": true,
-  "nombre": "Mi próximo paso",
-  "tipo": "Ejercicio experiencial",
-  "procesos": [
-   "accion"
-  ],
-  "principal": "accion",
-  "paraQue": "Traducir un valor en una acción pequeña, concreta y probable, anticipando obstáculos internos y cómo responder a ellos.",
-  "cuando": "Al final de cada sesión como tarea. Siempre después de haber trabajado algo de valores.",
-  "precauciones": "Cuidado con los pasos demasiado grandes o elegidos para agradar al terapeuta. Explorar sin juicio lo que ocurra en la sesión siguiente.",
-  "guion": "Elegir un valor. Definir la acción con qué, cuándo y dónde. Evaluar la probabilidad y reducir si hace falta. Anticipar obstáculos internos. Preguntar por la disposición. Elegir qué hará cuando aparezcan.",
-  "errores": "• Aceptar pasos vagos («intentaré cuidarme más»).\n• Revisar la tarea como examen en la sesión siguiente.",
-  "variaciones": "Escribirlo en una tarjeta o en el móvil. Añadir una persona a la que contárselo.",
-  "roleplay": "Defino un paso real para mi semana, lo cumplo o no, y reviso con un compañero cómo lo formulé y qué obstáculos aparecieron.",
-  "fuente": "Hayes, S. C., Strosahl, K. D. y Wilson, K. G. Terapia de aceptación y compromiso: proceso y práctica del cambio consciente, parte 3 (capítulo de acción comprometida). Harris, R. (2009). ACT Made Simple (metas SMART).",
-  "libroId": "lib-hayes",
-  "exp": {},
-  "notasExp": [],
-  "audios": [],
-  "videos": []
+  "videos": [],
+  "ejemplo": true
  }
 ];
 

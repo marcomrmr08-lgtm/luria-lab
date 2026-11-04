@@ -64,6 +64,16 @@ function completar(s) {
     for (const f of FICHAS_BASE) if (!ids.has(f.id) && !borr.has(f.id)) s.hexaflex.fichas.push(JSON.parse(JSON.stringify(f)));
     s.hexaflex.base2 = true;
   }
+  // Una ficha de ejemplo por proceso: se quitan las demás precargadas si no se han usado
+  if (!s.hexaflex.base3) {
+    const quedan = new Set(FICHAS_BASE.map((f) => f.id));
+    const usada = (f) => f.miVersion || f.audios?.length || f.videos?.length || f.notasExp?.length;
+    const fuera = s.hexaflex.fichas.filter((f) => (f.base || f.ejemplo) && !quedan.has(f.id) && !usada(f)).map((f) => f.id);
+    s.hexaflex.fichas = s.hexaflex.fichas.filter((f) => !fuera.includes(f.id));
+    for (const f of s.hexaflex.fichas) if (quedan.has(f.id)) f.ejemplo = true;
+    s.borrados = [...new Set([...(s.borrados || []), ...fuera])];
+    s.hexaflex.base3 = true;
+  }
   s.hexaflex.notas = s.hexaflex.notas || {};
   // Lo escrito en la versión anterior (qué es, cómo se ve, qué busca) pasa a «Mis notas»
   for (const [k, v] of Object.entries(s.hexaflex.procesos)) {
