@@ -5,29 +5,11 @@ import { TIPOS } from './calendario.js';
 const estilo = 'font-family:Arial,sans-serif;font-size:11pt;';
 const guia = (t) => `<p style="color:#666666"><i>${t}</i></p>`;
 
-// Plantilla predeterminada del diario crítico. Las marcas {{…}} se rellenan al crear cada diario.
-export function plantillaDiario() {
-  return `<html><body style="${estilo}">
-<h1>CASO Nº: {{CASO}}</h1>
-<p><b>Fecha:</b> {{FECHA}}<br><b>Tipo de sesión:</b> {{TIPO}} ({{FORMATO}})<br><b>Duración:</b> {{DURACION}}<br><b>Terapeuta:</b> {{TERAPEUTA}}<br><b>Código de paciente:</b> {{CODIGO}}</p>
-<h2>RESUMEN DE LA SESIÓN</h2>
-${guia('¿Qué ha ocurrido? ¿Cuáles han sido los temas, acontecimientos o momentos principales?')}
-<p></p>
-<h2>INTERVENCIONES, HABILIDADES Y PROCESOS CLÍNICOS RELEVANTES</h2>
-${guia('¿Qué ha hecho el terapeuta y cómo se ha relacionado con el paciente? ¿Qué intervenciones me han llamado la atención y qué función creo que podían tener? Interacciones, procesos de flexibilidad psicológica, conductas clínicamente relevantes, intervención del terapeuta / manejo de contingencias y reflexión personal.')}
-<p></p>
-<h2>REFLEXIÓN Y SEGUIMIENTO</h2>
-${guia('¿Qué haría yo como terapeuta? ¿Qué información falta recoger? ¿Qué quiero observar o trabajar en la próxima sesión?')}
-<p></p>
-<h2>NOTAS EN CALIENTE</h2>
-<p>{{NOTAS}}</p>
-<h2>FEEDBACK DEL TERAPEUTA</h2>
-</body></html>`;
-}
-
-export function marcasDiario({ numero, codigo, fecha, tipo, formato, duracion, terapeuta, notas }) {
+// La plantilla predeterminada del diario crítico es plantillas/diario-critico.docx (marcas {{…}}).
+export function marcasDiario({ numero, codigo, inicial, fecha, tipo, formato, duracion, terapeuta, notas }) {
+  const paciente = `${codigo}${inicial ? ' ' + inicial.toUpperCase() : ''}`;
   return {
-    CASO: numero, CODIGO: codigo, FECHA: fmtNum(fecha), TIPO: TIPOS[tipo]?.nombre || tipo,
+    CASO: numero, CODIGO: paciente, PACIENTE: paciente, FECHA: fmtNum(fecha), TIPO: TIPOS[tipo]?.nombre || tipo,
     FORMATO: formato === 'online' ? 'online' : 'presencial', DURACION: duracion, TERAPEUTA: terapeuta || '—',
     NOTAS: notas || '—',
   };

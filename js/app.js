@@ -176,12 +176,16 @@ function montarSelectorTerapeuta(raiz) {
 }
 
 // ======================= Acciones con Google =======================
+const PLANTILLA_DIARIO_V = 2;
 async function plantillaDiarioId() {
   const aj = S.datos().ajustes;
-  if (aj.plantillaDiarioId) return aj.plantillaDiarioId;
+  // La predeterminada se rehace si cambia de versión (las plantillas propias no se tocan)
+  if (aj.plantillaDiarioId && (aj.plantillaPropia || aj.plantillaDiarioV === PLANTILLA_DIARIO_V)) return aj.plantillaDiarioId;
   const dir = await G.carpeta([RAIZ, 'Plantillas'], aj.carpetas);
-  aj.plantillaDiarioId = await G.docDesdeHtml('Plantilla · Diario crítico', D.plantillaDiario(), dir);
-  aj.plantillaPropia = false; S.guardar();
+  const r = await fetch('plantillas/diario-critico.docx', { cache: 'no-cache' });
+  if (!r.ok) throw new Error('No se pudo cargar la plantilla del diario. Revisa tu conexión.');
+  aj.plantillaDiarioId = await G.subirArchivo('Plantilla · Diario crítico', await r.blob(), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', dir, 'application/vnd.google-apps.document');
+  aj.plantillaPropia = false; aj.plantillaDiarioV = PLANTILLA_DIARIO_V; S.guardar();
   return aj.plantillaDiarioId;
 }
 async function crearDiario(id) {
@@ -195,8 +199,8 @@ async function crearDiario(id) {
   try { doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
   catch { S.datos().ajustes.plantillaDiarioId = null; doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
   await G.reemplazarMarcas(doc, D.marcasDiario({
-    numero: S.numeroDiario(a), codigo, fecha: a.fecha, tipo: a.tipo, formato: a.formato,
-    duracion: `1 h (computa ${S.horasDe(a)} h)`, terapeuta: S.terapeuta(a.terapeutaId)?.nombre, notas: a.notasCaliente,
+    numero: S.numeroDiario(a), codigo, inicial: aliasDe(codigo), fecha: a.fecha, tipo: a.tipo, formato: a.formato,
+    duracion: '1 h', terapeuta: S.terapeuta(a.terapeutaId)?.nombre, notas: a.notasCaliente,
   }));
   S.actualizar(() => { a.docId = doc; });
   return doc;
@@ -580,7 +584,9 @@ function vSesion(id) {
       ${seg('tipo', [['espejo', 'Espejo'], ['coterapia', 'Coterapia']], a.tipo)}
       ${seg('formato', [['presencial', 'Presencial'], ['online', 'Online (Teams)']], a.formato || 'presencial')}
       <div class="campo"><label for="caso">Código de caso</label><input type="text" id="caso" name="caso" list="l-casos" required value="${esc(a.caso)}" placeholder="p. ej. 07" autocomplete="off"><datalist id="l-casos">${casos.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
-        <span class="ayuda">Nunca nombres ni iniciales. Las sesiones del mismo código se agrupan.</span></div>
+        <span class="ayuda">Solo el número. Las sesiones del mismo código se agrupan.</span></div>
+      <div class="campo"><label for="ini-pac">Inicial del nombre del paciente <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="ini-pac" name="inicialPac" maxlength="3" value="${esc(aliasDe(a.caso))}" placeholder="p. ej. M" autocomplete="off" style="max-width:140px">
+        <span class="ayuda">${icon('candado', 12)} Aparece tras el número en tu diario crítico. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></div>
       <div class="dos-col">
         <div class="campo"><label for="fecha">Fecha</label><input type="date" id="fecha" name="fecha" required value="${esc(a.fecha)}"></div>
         <div class="campo"><label for="hora">Hora</label><input type="time" id="hora" name="hora" value="${esc(a.hora)}"></div>
@@ -588,7 +594,7 @@ function vSesion(id) {
       <p class="pequeno suave">Duración: 1 h · cuenta ${horas} h en tu registro</p>
       <div class="campo"><label for="ter">Terapeuta</label><select id="ter" name="terapeutaId" data-terapeuta>${opcionesTerapeuta(a.terapeutaId)}</select></div>
       <div class="campo"><label for="notas">Notas en caliente <span class="suave" style="font-weight:400">(2-3 líneas)</span></label><textarea id="notas" name="notasCaliente" rows="3" placeholder="Lo que no quieres olvidar antes de escribir el diario…">${esc(a.notasCaliente)}</textarea>
-        <span class="ayuda">Se copian en tu diario crítico.</span></div>
+        <span class="ayuda">Se quedan en la app (las ves en el caso) para escribir el diario.</span></div>
       <div class="aviso-caja">${icon('candado', 18)}<span>Escribe para aprender, no para identificar: evita profesión, barrio, fechas o hechos muy concretos del paciente.</span></div>
       ${a.docId ? `<div class="botones"><a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener">${icon('doc', 16)}Abrir diario</a><a class="btn" href="#/caso/${encodeURIComponent((a.caso || '').trim())}">Ver caso</a></div>` : ''}
       <div class="seccion" style="margin-top:6px">
@@ -607,6 +613,7 @@ function vSesion(id) {
         const v = leerForm(f);
         if (!v.caso?.trim()) { toast('Pon un código de caso.', { error: true }); f.caso.focus(); return; }
         if (!v.fecha) { toast('Pon la fecha.', { error: true }); return; }
+        if (v.inicialPac !== undefined && v.inicialPac.trim().toUpperCase() !== aliasDe(v.caso)) ponerAlias(v.caso, v.inicialPac.trim().toUpperCase());
         Object.assign(a, { tipo: v.tipo, formato: v.formato, caso: v.caso.trim(), fecha: v.fecha, hora: v.hora, terapeutaId: v.terapeutaId && v.terapeutaId !== '__nuevo' ? v.terapeutaId : null, notasCaliente: v.notasCaliente.trim() });
         a.estado = a.fecha > hoyISO() ? 'programada' : 'hecha';
         S.actualizar((s) => { if (nuevo) { s.actividades.push(a); delete borradores[id]; } });
@@ -861,9 +868,9 @@ function vCaso(codigo) {
     html: `<div class="pantalla sin-nav">${volver('#/diario', 'Diario')}
     <div class="item-texto"><h1 class="titulo" style="font-size:30px">${esc(etiquetaCaso(codigo))}${aliasDe(codigo) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(aliasDe(codigo))}</span>` : ''}${ultima && inicialesTer(S.terapeuta(ultima.terapeutaId)) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(inicialesTer(S.terapeuta(ultima.terapeutaId)))}</span>` : ''}</h1>
     <span class="suave pequeno">${ultima ? 'Terapeuta: ' + esc(S.terapeuta(ultima.terapeutaId)?.nombre || '') + ' · ' : ''}${hechasC.length} sesi${hechasC.length === 1 ? 'ón' : 'ones'}${hechasC[0] ? ' · desde el ' + esc(fmtCorta(hechasC[0].fecha)) : ''}</span></div>
-    <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Alias privado del paciente</label>
-      <div class="dos-col" style="grid-template-columns:1fr auto"><input type="text" id="alias" maxlength="12" value="${esc(aliasDe(codigo))}" placeholder="p. ej. sus iniciales" autocomplete="off"><button class="btn">Guardar</button></div>
-      <span class="mini suave" style="line-height:1.4">${icon('candado', 12)} Solo se guarda en este dispositivo. No va a Drive, ni a Google Calendar, ni a los diarios.</span></form>
+    <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Inicial del paciente</label>
+      <div class="dos-col" style="grid-template-columns:1fr auto"><input type="text" id="alias" maxlength="12" value="${esc(aliasDe(codigo))}" placeholder="p. ej. M" autocomplete="off"><button class="btn">Guardar</button></div>
+      <span class="mini suave" style="line-height:1.4">${icon('candado', 12)} Aparece tras el número en los diarios críticos que crees. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></form>
     <div class="seccion">${tarjetas}</div></div>`,
     mount(r) {
       r.querySelector('#f-alias').addEventListener('submit', (e) => { e.preventDefault(); ponerAlias(codigo, r.querySelector('#alias').value.trim()); toast('Alias guardado en este dispositivo.'); render(); });
@@ -1020,9 +1027,9 @@ function vAjustes() {
     <h2 class="etiqueta-grupo">Plantillas</h2>
     <div class="tarjeta lista">
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Hoja de horas de Luria</span><span class="item-sub">${aj.plantillaHorasNombre ? esc(aj.plantillaHorasNombre) : 'Sin subir'}</span></span><label class="btn texto" for="in-horas" style="cursor:pointer">${aj.plantillaHorasNombre ? 'Cambiar' : 'Subir .xlsx'}</label><input type="file" id="in-horas" accept=".xlsx" class="oculto"></div>
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : 'Predeterminada · 3 apartados + notas y feedback'}</span></span>${aj.plantillaPropia ? '<button class="btn texto" data-act="plantilla-defecto">Usar la predeterminada</button>' : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">Subir .docx</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
+      <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : 'Predeterminada · datos de la sesión + 3 apartados'}</span></span>${aj.plantillaPropia ? '<button class="btn texto" data-act="plantilla-defecto">Usar la predeterminada</button>' : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">Subir .docx</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
     </div>
-    <p class="mini suave" style="line-height:1.45;margin-top:-6px">Si subes tu propia plantilla del diario, la app rellena estas marcas donde las pongas: {{CASO}}, {{CODIGO}}, {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p>
+    <p class="mini suave" style="line-height:1.45;margin-top:-6px">Si subes tu propia plantilla del diario, la app rellena estas marcas donde las pongas: {{PACIENTE}} (número + inicial), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p>
 
     </div><div class="bloque">
     <h2 class="etiqueta-grupo">Actividades anteriores a la app</h2>
@@ -1075,7 +1082,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.3.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.4.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
