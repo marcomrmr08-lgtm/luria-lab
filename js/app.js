@@ -1127,7 +1127,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.6.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.6.1</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1700,9 +1700,11 @@ function bloqueApuntes(a) {
     <span class="tipo c-${color(a)}" style="font-size:13px">Apuntes</span>
     ${doc ? `<div class="apunte-doc">${icon('doc', 20)}<span class="item-texto"><a href="${esc(doc.url)}" target="_blank" rel="noopener" style="font-weight:700">${esc(doc.nombre)}</a><span class="mini suave">En tu Drive · carpeta Apuntes</span></span><button type="button" class="btn texto pequeno" data-act="apuntes-quitar" data-id="${esc(a.id)}">Quitar</button></div>
       <a class="btn" href="${esc(doc.url)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir apuntes</a>`
-    : `<div class="botones"><button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}Crear doc</button><label class="btn" for="sub-apuntes" tabindex="0">${icon('subir', 16)}Subir</label></div>
+    : conIA(a) ? `<div class="botones"><button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}Crear doc</button><label class="btn" for="sub-apuntes" tabindex="0">${icon('subir', 16)}Subir</label></div>
       <input type="file" id="sub-apuntes" accept=".docx,.doc,.odt,.txt,.md,.pdf,image/*" hidden>
-      <span class="mini suave" style="line-height:1.45">Escribe como quieras. Puedes crear un documento en blanco en tu Drive o subir uno tuyo (Word, PDF o una foto de tus apuntes).</span>`}
+      <span class="mini suave" style="line-height:1.45">Escribe como quieras. Puedes crear un documento en blanco en tu Drive o subir uno tuyo (Word, PDF o una foto de tus apuntes).</span>`
+    : `<button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}Crear documento de apuntes</button>
+      <span class="mini suave" style="line-height:1.45">Un documento en blanco en tu Drive para escribir como quieras.</span>`}
     <div class="campo"><label for="idea-clave">Idea clave <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="idea-clave" name="ideaClave" maxlength="200" value="${esc(ideaDe(a))}" placeholder="Lo esencial, en una línea"></div>
     ${conIA(a) ? (entrada ? `<a class="btn" href="#/guia/${esc(entrada.id)}">${icon('guia', 16)}Ver en tu Guía clínica</a>`
       : `<button type="button" class="btn ${doc ? 'primario' : ''}" data-act="a-guia" data-id="${esc(a.id)}" ${doc ? '' : 'disabled'}>${icon('guia', 16)}Pasar a Guía clínica</button>${doc ? '' : '<span class="mini suave" style="margin-top:-6px">Primero crea o sube tus apuntes.</span>'}`) : ''}
