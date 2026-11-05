@@ -328,5 +328,13 @@ button.estado-sync { cursor: pointer; }
   .lateral .estado-sync { position: static; border-radius: 12px; border: 1px solid var(--linea); justify-content: flex-start; text-align: left; padding: 10px 12px; line-height: 1.35; }
   .lateral .estado-sync.aviso, .lateral .estado-sync.neutro { border-color: transparent; }
 }
-.visor-pdf { width: 100%; height: 70vh; min-height: 420px; border: 1px solid var(--linea); border-radius: 16px; background: var(--superficie); }
+.visor-pdf { width: 100%; max-height: 70vh; min-height: 220px; overflow-y: auto; border: 1px solid var(--linea); border-radius: 16px; background: var(--superficie); cursor: zoom-in; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.visor-pdf .pagina-pdf, .pdf-lienzo .pagina-pdf { display: block; background: #fff; box-shadow: 0 1px 4px rgba(20, 24, 70, 0.12); border-radius: 4px; }
+.visor-msg { margin: auto; text-align: center; padding: 24px; display: flex; gap: 8px; align-items: center; justify-content: center; }
+.pdf-completo { position: fixed; inset: 0; z-index: 100; background: #2B2E3A; display: flex; flex-direction: column; }
+.pdf-barra { display: flex; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top) + 8px) 12px 8px; background: var(--superficie); border-bottom: 1px solid var(--linea); }
+.pdf-barra .icono-btn { font-size: 22px; font-weight: 700; width: 40px; height: 40px; }
+.pdf-titulo { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.pdf-hojas { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 12px 8px calc(env(safe-area-inset-bottom) + 12px); }
+.pdf-lienzo { display: flex; flex-direction: column; gap: 10px; margin: 0 auto; max-width: none; }
 .es-escritorio .pantalla.ancha-pdf { max-width: 960px; }

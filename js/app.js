@@ -1177,7 +1177,7 @@ function vAjustes() {
     <div class="tarjeta lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
     <p class="mini suave" style="line-height:1.45;margin-top:-4px">La app guarda sola tus últimas 5 versiones en este dispositivo: al abrirla y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</p>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.8.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.8.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1872,15 +1872,88 @@ function vGuiaEntrada(id) {
       <h1 class="titulo">${esc(e.titulo)}</h1>
       <span class="pequeno suave">${act ? `<a href="${rutaVer(act)}">${esc(e.fuente)}</a>` : esc(e.fuente || '')}</span>
       ${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<a class="insignia" href="#/guia?tema=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</span>` : ''}
-      ${pdf ? `<a class="btn primario" href="${esc(G.enlaceArchivo(e.archivoId))}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir el PDF</a>
-        <iframe class="visor-pdf" src="https://drive.google.com/file/d/${encodeURIComponent(e.archivoId)}/preview" title="${esc(e.titulo)}" loading="lazy" allow="autoplay"></iframe>
-        <span class="mini suave">Si no ves el PDF aquí, ábrelo con el botón: se ve con tu cuenta de Google.</span>`
+      ${pdf ? `<div class="visor-pdf" id="visor-pdf" role="button" tabindex="0" aria-label="Ver el PDF a pantalla completa"><p class="mini suave visor-msg"><span class="spinner" aria-hidden="true"></span> Cargando el PDF…</p></div>
+        <span class="mini suave" style="text-align:center">Toca el PDF para verlo a pantalla completa</span>`
         : `<div class="md">${md(e.contenido)}</div>`}
     </article>
-    <div class="botones"><button class="btn" data-act="guia-editar" data-id="${esc(e.id)}">${icon('editar', 16)}Editar título y temas</button>${pdf ? '' : `<button class="btn" data-act="guia-copiar" data-id="${esc(e.id)}">${icon('copiar', 16)}Copiar</button>`}</div>
+    <div class="botones"><button class="btn" data-act="guia-editar" data-id="${esc(e.id)}">${icon('editar', 16)}Editar</button>${pdf ? '' : `<button class="btn" data-act="guia-copiar" data-id="${esc(e.id)}">${icon('copiar', 16)}Copiar</button>`}</div>
+    ${pdf ? `<a class="btn texto" href="${esc(G.enlaceArchivo(e.archivoId))}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir en Google Drive</a>` : ''}
     <button class="btn texto peligro" data-act="guia-borrar" data-id="${esc(e.id)}">Quitar de la guía</button>
     </div>`,
+    mount(r) { if (pdf) montarVisorPdf(r.querySelector('#visor-pdf'), e); },
   };
+}
+// ---------- Visor de PDF propio (sin depender de las cookies de Google) ----------
+let pdfjsCarga = null;
+function cargarPdfjs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  pdfjsCarga = pdfjsCarga || new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = 'vendor/pdfjs/pdf.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.js'; res(window.pdfjsLib); };
+    sc.onerror = () => { pdfjsCarga = null; rej(new Error('No se pudo cargar el visor de PDF.')); };
+    document.head.appendChild(sc);
+  });
+  return pdfjsCarga;
+}
+// El PDF se guarda en el dispositivo la primera vez para que abra rápido y sin conexión
+async function bytesPdf(e) {
+  const clave = `pdf-${e.archivoId}`;
+  try { const b = await idbGet(clave); if (b) return b; } catch {}
+  const buf = await G.descargarArchivo(e.archivoId);
+  try { await idbSet(clave, buf); } catch {}
+  return buf;
+}
+async function pintarPaginas(doc, cont, ancho) {
+  cont.innerHTML = '';
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  for (let n = 1; n <= doc.numPages; n++) {
+    if (!cont.isConnected) return;
+    const pag = await doc.getPage(n);
+    const base = pag.getViewport({ scale: 1 });
+    const vp = pag.getViewport({ scale: (ancho / base.width) * dpr });
+    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; c.className = 'pagina-pdf';
+    c.style.width = '100%'; c.setAttribute('aria-label', `Página ${n} de ${doc.numPages}`);
+    cont.appendChild(c);
+    await pag.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  }
+}
+async function montarVisorPdf(visor, e) {
+  if (!visor) return;
+  const msg = (html) => { visor.innerHTML = `<p class="mini suave visor-msg">${html}</p>`; };
+  let doc = null;
+  const cargar = async () => {
+    try {
+      msg('<span class="spinner" aria-hidden="true"></span> Cargando el PDF…');
+      const [lib, buf] = await Promise.all([cargarPdfjs(), bytesPdf(e)]);
+      doc = await lib.getDocument({ data: new Uint8Array(buf.slice ? buf.slice(0) : buf) }).promise;
+      await pintarPaginas(doc, visor, visor.clientWidth || 340);
+    } catch (err) {
+      console.warn(err);
+      if (!G.conectado()) { visor.innerHTML = `<p class="visor-msg"><button type="button" class="btn">Toca para cargar el PDF</button></p>`; visor.querySelector('button').addEventListener('click', (ev) => { ev.stopPropagation(); google().then(cargar).catch((x) => toast(x.message, { error: true })); }); }
+      else msg('No se pudo mostrar el PDF. Ábrelo en Google Drive con el botón de abajo.');
+    }
+  };
+  // Si ya está en el dispositivo o hay conexión con Google, se carga solo
+  let enDispositivo = false; try { enDispositivo = Boolean(await idbGet(`pdf-${e.archivoId}`)); } catch {}
+  if (enDispositivo || G.conectado()) cargar();
+  else { visor.innerHTML = `<p class="visor-msg"><button type="button" class="btn">Toca para cargar el PDF</button></p>`; visor.querySelector('button').addEventListener('click', (ev) => { ev.stopPropagation(); google().then(cargar).catch((x) => toast(x.message, { error: true })); }); }
+  const abrir = () => { if (doc) pantallaCompletaPdf(doc, e.titulo); };
+  visor.addEventListener('click', abrir);
+  visor.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } });
+}
+function pantallaCompletaPdf(doc, tituloPdf) {
+  const capa = document.createElement('div'); capa.className = 'pdf-completo'; capa.setAttribute('role', 'dialog'); capa.setAttribute('aria-label', tituloPdf);
+  capa.innerHTML = `<div class="pdf-barra"><button type="button" class="icono-btn" data-z="-" aria-label="Alejar">−</button><span class="pdf-titulo">${esc(tituloPdf)}</span><button type="button" class="icono-btn" data-z="+" aria-label="Acercar">+</button><button type="button" class="btn pequeno" data-cerrar-pdf>Cerrar</button></div><div class="pdf-hojas"><div class="pdf-lienzo"></div></div>`;
+  document.body.appendChild(capa); document.body.style.overflow = 'hidden';
+  const lienzo = capa.querySelector('.pdf-lienzo'); const hojas = capa.querySelector('.pdf-hojas');
+  let zoom = 1;
+  const pintar = () => { lienzo.style.width = `${zoom * 100}%`; pintarPaginas(doc, lienzo, hojas.clientWidth * zoom); };
+  const cerrar = () => { capa.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', tecla); };
+  const tecla = (ev) => { if (ev.key === 'Escape') cerrar(); };
+  document.addEventListener('keydown', tecla);
+  capa.querySelector('[data-cerrar-pdf]').addEventListener('click', cerrar);
+  capa.querySelectorAll('[data-z]').forEach((b) => b.addEventListener('click', () => { zoom = Math.max(1, Math.min(3, zoom + (b.dataset.z === '+' ? 0.5 : -0.5))); pintar(); }));
+  pintar();
 }
 function modalEntradaGuia(e) {
   abrirModal(`<h2>Editar</h2>
