@@ -14,8 +14,9 @@ const RAIZ = CONFIG.CARPETA_RAIZ;
 S.cargar();
 
 // Logo del centro: se guarda solo en este dispositivo (no se publica con la app)
-let logoURL = null;
-idbGet('logo').then((b) => { if (b) { logoURL = URL.createObjectURL(b); render(); } }).catch(() => {});
+// El logo del centro ya no se usa: se borra si quedó guardado de versiones anteriores
+const logoURL = null;
+idbSet('logo', null).catch(() => {});
 
 // ======================= Sincronización con Drive =======================
 let temporizador = null; let subiendo = false; let otraVez = false;
@@ -1094,94 +1095,102 @@ async function pintarCopias(r) {
   caja.innerHTML = lista.length ? lista.map((c, i) => `<div class="fila"><span class="item-texto"><span style="font-size:15px">${fecha(c.fecha)}</span><span class="item-sub">${esc(c.motivo)} · ${((n) => `${n} ${n === 1 ? 'actividad hecha' : 'actividades hechas'}`)((c.datos.actividades || []).filter((a) => a.estado === 'hecha').length)}</span></span><button class="btn texto" data-act="copia-volver" data-i="${i}">Volver a esta</button></div>`).join('')
     : '<p class="mini suave" style="padding:4px 0">Aún no hay copias. Se hará la primera la próxima vez que abras la app.</p>';
 }
-function vAjustes() {
+const PESTANAS_AJUSTES = [['practicas', 'Prácticas', 'birrete'], ['plantillas', 'Plantillas', 'doc'], ['cuenta', 'Cuenta', 'candado'], ['datos', 'Datos', 'descargar']];
+function vAjustes(params) {
   const s = S.datos(); const aj = s.ajustes;
+  const tab = PESTANAS_AJUSTES.some(([k]) => k === params?.get('tab')) ? params.get('tab') : 'practicas';
   const horasCampo = (t, l) => `<div class="fila"><label for="h-${t}" style="font-size:15px">${l}</label><span style="display:flex;align-items:center;gap:6px"><input type="number" id="h-${t}" name="h_${t}" min="0" step="0.5" value="${esc(aj.horas[t])}" style="width:80px;text-align:center;min-height:40px">h</span></div>`;
-  return {
-    html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
-    <div class="ajustes-cols">
+  const titulo = (ic, t, sub = '') => `<div class="aj-titulo"><span class="aj-icono">${icon(ic, 18)}</span><span class="item-texto"><span class="aj-nombre">${t}</span>${sub ? `<span class="mini suave">${sub}</span>` : ''}</span></div>`;
+  const paneles = {
+    practicas: `
     <form id="f-aj" class="seccion bloque">
-      <h2 class="etiqueta-grupo">Mis prácticas</h2>
-      <div class="tarjeta">
-        <div class="campo"><label for="a-nombre">Nombre y apellidos</label><input type="text" id="a-nombre" name="nombre" value="${esc(aj.nombre)}" placeholder="Aparece en la hoja de horas"></div>
+      <section class="tarjeta">${titulo('birrete', 'Mis prácticas', 'Aparece en la hoja de horas')}
+        <div class="campo"><label for="a-nombre">Nombre y apellidos</label><input type="text" id="a-nombre" name="nombre" value="${esc(aj.nombre)}"></div>
         <div class="dos-col"><div class="campo"><label for="a-obj">Objetivo de horas</label><input type="number" id="a-obj" name="objetivoHoras" min="1" value="${esc(aj.objetivoHoras)}"></div>
         <div class="campo"><label for="a-per">Periodo</label><input type="text" id="a-per" name="periodo" value="${esc(aj.periodo)}"></div></div>
         <div class="campo"><label for="a-tc">Tutorías de caso previstas en total</label><input type="number" id="a-tc" name="tcPrevistas" min="0" value="${esc(aj.tcPrevistas)}">
-          <span class="ayuda">Unas 7 al mes de octubre a enero = 28. Se usa para calcular cuántos espejos o coterapias te faltan.</span></div>
-      </div>
-      <h2 class="etiqueta-grupo">Horas computables por actividad</h2>
-      <div class="tarjeta lista">${horasCampo('espejo', 'Espejo')}${horasCampo('coterapia', 'Coterapia')}${horasCampo('tutoria_metodologica', 'Tutoría metodológica')}${horasCampo('tutoria_caso', 'Tutoría de caso')}${horasCampo('seminario', 'Seminario')}</div>
+          <span class="ayuda">Unas 7 al mes de octubre a enero = 28. Sirve para calcular cuántos espejos o coterapias te faltan.</span></div>
+      </section>
+      <section class="tarjeta">${titulo('reloj', 'Horas que cuenta cada actividad')}
+        <div class="lista">${horasCampo('espejo', 'Espejo')}${horasCampo('coterapia', 'Coterapia')}${horasCampo('tutoria_metodologica', 'Tutoría metodológica')}${horasCampo('tutoria_caso', 'Tutoría de caso')}${horasCampo('seminario', 'Seminario')}</div>
+      </section>
       <button class="btn primario grande">Guardar cambios</button>
     </form>
-
     <div class="bloque">
-    <h2 class="etiqueta-grupo">Plantillas</h2>
-    <div class="tarjeta lista">
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Hoja de horas de Luria</span><span class="item-sub">${aj.plantillaHorasNombre ? esc(aj.plantillaHorasNombre) : 'Sin subir'}</span></span><label class="btn texto" for="in-horas" style="cursor:pointer">${aj.plantillaHorasNombre ? 'Cambiar' : 'Subir .xlsx'}</label><input type="file" id="in-horas" accept=".xlsx" class="oculto"></div>
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : 'Predeterminada · datos de la sesión + 3 apartados'}</span></span>${aj.plantillaPropia ? '<button class="btn texto" data-act="plantilla-defecto">Usar la predeterminada</button>' : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">Subir .docx</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
+      <section class="tarjeta">${titulo('bocadillo', 'Mis terapeutas', `${s.terapeutas.length} ${s.terapeutas.length === 1 ? 'terapeuta' : 'terapeutas'}`)}
+        <div class="lista">${s.terapeutas.map((t) => `<button class="fila" data-act="editar-ter" data-id="${esc(t.id)}"><span class="item-texto"><span style="font-size:15px">${esc(t.nombre)}</span></span>${icon('sig', 18)}</button>`).join('')}
+        <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button></div>
+      </section>
+    </div>`,
+    plantillas: `
+    <div class="bloque">
+      <section class="tarjeta">${titulo('doc', 'Plantillas', 'Las que usa la app para crear tus documentos')}
+        <div class="lista">
+        <div class="fila"><span class="item-texto"><span style="font-size:15px">Hoja de horas de Luria</span><span class="item-sub">${aj.plantillaHorasNombre ? esc(aj.plantillaHorasNombre) : 'Sin subir'}</span></span><label class="btn texto" for="in-horas" style="cursor:pointer">${aj.plantillaHorasNombre ? 'Cambiar' : 'Subir .xlsx'}</label><input type="file" id="in-horas" accept=".xlsx" class="oculto"></div>
+        <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : 'Predeterminada · datos de la sesión + 3 apartados'}</span></span>${aj.plantillaPropia ? '<button class="btn texto" data-act="plantilla-defecto">Usar la predeterminada</button>' : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">Subir .docx</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
+        </div>
+        <details class="pequeno"><summary class="suave">Usar mi propia plantilla del diario</summary><p class="mini suave" style="line-height:1.5;margin-top:6px">La app rellena estas marcas donde las pongas: {{PACIENTE}} (número + inicial), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p></details>
+      </section>
     </div>
-    <p class="mini suave" style="line-height:1.45;margin-top:-6px">Si subes tu propia plantilla del diario, la app rellena estas marcas donde las pongas: {{PACIENTE}} (número + inicial), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p>
-
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Actividades anteriores a la app</h2>
-    <div class="tarjeta">
-      <p class="pequeno suave" style="line-height:1.45">Lo que hiciste antes de usar la app, con su día, para que se marquen las casillas correctas en la hoja de horas.</p>
-      <label class="btn primario" for="in-importar" style="cursor:pointer">${icon('hoja', 18)}Importar las hojas ya enviadas (.xlsx)</label><input type="file" id="in-importar" accept=".xlsx" multiple class="oculto">
-      <span class="mini suave" style="line-height:1.4;margin-top:-4px">Sube los registros de horas que ya mandaste a Luria. La app lee las casillas marcadas y crea las actividades sola (las tutorías metodológicas y los seminarios se marcan como «Asistí»). No duplica lo que ya tengas.</span>
-      <button class="btn" data-act="varios-dias">${icon('calendario', 18)}Marcar varios días en un calendario</button>
-      <p class="etiqueta-grupo" style="margin:6px 0 0">O un día concreto</p>
-      <form id="f-prev" class="seccion">
-        <div class="dos-col"><div class="campo"><label for="p-fecha">Día</label><input type="date" id="p-fecha" name="fecha" required></div>
-        <div class="campo"><label for="p-tipo">Actividad</label><select id="p-tipo" name="tipo">${['espejo', 'coterapia', 'tutoria_caso'].map((t) => `<option value="${t}">${esc(TIPOS[t].nombre)}</option>`).join('')}</select></div></div>
-        <div class="campo" data-solo-sesion><label for="p-caso">Código de caso <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="p-caso" name="caso" list="l-casos-p"><datalist id="l-casos-p">${[...S.casos().keys()].map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
-        <div class="dos-col" style="align-items:end"><div class="campo"><label for="p-n">Cuántas ese día</label><input type="number" id="p-n" name="cantidad" min="1" max="8" value="1"></div><button class="btn">Añadir</button></div>
-      </form>
-      ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales antiguos sin día (ya no cuentan en tus horas ni en la hoja; quítalos y usa la importación o el calendario): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
+    <div class="bloque">
+      <section class="tarjeta">${titulo('calendario', 'Actividades anteriores a la app', 'Para que la hoja de horas marque los días correctos')}
+        <label class="btn primario" for="in-importar" style="cursor:pointer">${icon('hoja', 18)}Importar hojas ya enviadas (.xlsx)</label><input type="file" id="in-importar" accept=".xlsx" multiple class="oculto">
+        <span class="mini suave" style="line-height:1.4;margin-top:-4px">La app lee las casillas marcadas y crea las actividades sola. No duplica lo que ya tengas.</span>
+        <button class="btn" data-act="varios-dias">${icon('calendario', 18)}Marcar varios días en un calendario</button>
+        <details><summary class="pequeno suave">Añadir un día concreto</summary>
+        <form id="f-prev" class="seccion" style="margin-top:10px">
+          <div class="dos-col"><div class="campo"><label for="p-fecha">Día</label><input type="date" id="p-fecha" name="fecha" required></div>
+          <div class="campo"><label for="p-tipo">Actividad</label><select id="p-tipo" name="tipo">${['espejo', 'coterapia', 'tutoria_caso'].map((t) => `<option value="${t}">${esc(TIPOS[t].nombre)}</option>`).join('')}</select></div></div>
+          <div class="campo" data-solo-sesion><label for="p-caso">Código de caso <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="p-caso" name="caso" list="l-casos-p"><datalist id="l-casos-p">${[...S.casos().keys()].map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
+          <div class="dos-col" style="align-items:end"><div class="campo"><label for="p-n">Cuántas ese día</label><input type="number" id="p-n" name="cantidad" min="1" max="8" value="1"></div><button class="btn">Añadir</button></div>
+        </form></details>
+        ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales antiguos sin día (ya no cuentan en tus horas ni en la hoja; quítalos y usa la importación o el calendario): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
+      </section>
+    </div>`,
+    cuenta: `
+    <div class="bloque">
+      <section class="tarjeta">${titulo('candado', 'Cuenta de Google', !G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · solo Drive y Docs, sin acceso al correo' : 'Sin conectar')}
+        ${G.configurado() ? (G.conectado() ? '<button class="btn" data-act="desconectar">Desconectar</button>' : '<button class="btn primario" data-act="conectar">Conectar con Google</button>') : ''}
+        <span class="mini suave" style="line-height:1.45">Tus registros se sincronizan con un archivo oculto de tu Drive que solo ve esta app. Los documentos que crees van a la carpeta «Luria Lab».</span>
+      </section>
     </div>
-
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Mis terapeutas</h2>
-    <div class="tarjeta lista">
-      ${s.terapeutas.map((t) => `<button class="fila" data-act="editar-ter" data-id="${esc(t.id)}"><span class="item-texto"><span style="font-size:15px">${esc(t.nombre)}</span></span>${icon('sig', 18)}</button>`).join('')}
-      <button class="fila" data-act="nuevo-ter" style="color:var(--verde);font-weight:700;justify-content:flex-start">${icon('mas', 18)} Añadir terapeuta</button>
+    <div class="bloque">
+      <section class="tarjeta">${titulo('calendario', 'Google Calendar', aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'Desactivado')}
+        <span class="mini suave" style="line-height:1.45">Envía tu agenda a un calendario «Luria Lab» que crea la app. Solo puede tocar ese calendario, y solo en un sentido: de la app a Calendar.</span>
+        ${aj.calendarioActivo ? '<button class="btn" data-act="cal-off">Desactivar</button>' : '<button class="btn" data-act="cal-on">Activar</button>'}
+        ${aj.calendarioId ? '<button class="btn texto peligro" data-act="cal-borrar">Quitar el calendario «Luria Lab» de Google Calendar</button>' : ''}
+      </section>
+    </div>`,
+    datos: `
+    <div class="bloque">
+      <section class="tarjeta">${titulo('reloj', 'Copias automáticas', 'Tus últimas 5 versiones, en este dispositivo')}
+        <div class="lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
+        <span class="mini suave" style="line-height:1.45">Se hacen solas al abrir la app y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</span>
+      </section>
     </div>
-
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Alias privados de pacientes</h2>
-    <div class="tarjeta lista">
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">${Object.keys(leerAlias()).length} alias en este dispositivo</span><span class="item-sub">No se sincronizan. Si cambias de móvil o borras la app, descárgalos antes y vuelve a cargarlos.</span></span><span style="display:flex"><button class="btn texto" data-act="alias-descargar">Descargar</button><label class="btn texto" for="in-alias" style="cursor:pointer">Cargar</label><input type="file" id="in-alias" accept=".json,application/json" class="oculto"></span></div>
-    </div>
-
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Google Calendar</h2>
-    <div class="tarjeta lista">
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Enviar mi agenda a Google Calendar</span><span class="item-sub">${aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'La app crea un calendario «Luria Lab» y solo puede tocar ese'}</span></span>${aj.calendarioActivo ? '<button class="btn texto" data-act="cal-off">Desactivar</button>' : '<button class="btn texto" data-act="cal-on">Activar</button>'}</div>
-      ${aj.calendarioId ? '<div class="fila"><span class="item-texto"><span style="font-size:15px">Quitar el calendario «Luria Lab»</span><span class="item-sub">Lo borra de tu Google Calendar con todos sus eventos</span></span><button class="btn texto" style="color:var(--error)" data-act="cal-borrar">Quitar</button></div>' : ''}
-    </div>
-
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Apariencia</h2>
-    <div class="tarjeta lista">
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Logo del centro</span><span class="item-sub">${logoURL ? 'Puesto · solo se ve en este dispositivo' : 'Solo se guarda en este dispositivo, no se publica'}</span></span><span style="display:flex">${logoURL ? '<button class="btn texto" data-act="quitar-logo">Quitar</button>' : ''}<label class="btn texto" for="in-logo" style="cursor:pointer">${logoURL ? 'Cambiar' : 'Subir imagen'}</label><input type="file" id="in-logo" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="oculto"></span></div>
-    </div>
-
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Cuenta</h2>
-    <div class="tarjeta lista">
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Cuenta de Google</span><span class="item-sub">${!G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · solo Drive y Docs, sin acceso al correo' : 'Sin conectar'}</span></span>${G.configurado() ? (G.conectado() ? '<button class="btn texto" data-act="desconectar">Desconectar</button>' : '<button class="btn texto" data-act="conectar">Conectar</button>') : ''}</div>
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
-      <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
-    </div>
-    </div><div class="bloque">
-    <h2 class="etiqueta-grupo">Copias automáticas</h2>
-    <div class="tarjeta lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
-    <p class="mini suave" style="line-height:1.45;margin-top:-4px">La app guarda sola tus últimas 5 versiones en este dispositivo: al abrirla y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</p>
-    </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.9.0</p>
+    <div class="bloque">
+      <section class="tarjeta">${titulo('descargar', 'Copia de seguridad', 'Un archivo con todos tus registros')}
+        <div class="botones"><button class="btn" data-act="copia">Descargar</button><label class="btn" for="in-copia" style="cursor:pointer">Restaurar</label></div><input type="file" id="in-copia" accept=".json,application/json" class="oculto">
+      </section>
+      <section class="tarjeta">${titulo('ojo', 'Iniciales de pacientes', `${Object.keys(leerAlias()).length} en este dispositivo · no se sincronizan`)}
+        <span class="mini suave" style="line-height:1.45">Si cambias de móvil o borras la app, descárgalas antes y vuelve a cargarlas.</span>
+        <div class="botones"><button class="btn" data-act="alias-descargar">Descargar</button><label class="btn" for="in-alias" style="cursor:pointer">Cargar</label></div><input type="file" id="in-alias" accept=".json,application/json" class="oculto">
+      </section>
+      <section class="tarjeta">${titulo('papelera', 'Cerrar sesión en este dispositivo', 'Borra los datos guardados aquí')}
+        <span class="mini suave" style="line-height:1.45">Lo sincronizado en tu Drive no se toca y vuelve al conectar.</span>
+        <button class="btn peligro" data-act="borrar-local">Cerrar sesión</button>
+      </section>
+    </div>`,
+  };
+  return {
+    html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
+    <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
+    <div class="ajustes-cols">${paneles[tab]}</div>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.10.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
-      r.querySelector('#f-aj').addEventListener('submit', (e) => {
+      r.querySelector('#f-aj')?.addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
         S.actualizar((st) => {
           Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim(), tcPrevistas: Math.max(0, Number(v.tcPrevistas) || 0) });
@@ -1189,7 +1198,7 @@ function vAjustes() {
         });
         toast('Ajustes guardados.');
       });
-      r.querySelector('#f-prev').addEventListener('submit', (e) => {
+      r.querySelector('#f-prev')?.addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
         if (!v.fecha) return;
         const n = Math.max(1, Math.min(8, Number(v.cantidad) || 1));
@@ -1198,19 +1207,12 @@ function vAjustes() {
         });
         toast(`Añadid${n === 1 ? 'a' : 'as'} ${n} · ${TIPOS[v.tipo].nombre.toLowerCase()} del ${fmtNum(v.fecha)}.`); render();
       });
-      r.querySelector('#in-alias').addEventListener('change', async (e) => {
+      r.querySelector('#in-alias')?.addEventListener('change', async (e) => {
         const f = e.target.files[0]; if (!f) return;
         try { const m = JSON.parse(await f.text()); if (typeof m !== 'object' || Array.isArray(m)) throw new Error(); const act = leerAlias(); localStorage.setItem(ALIAS, JSON.stringify({ ...act, ...m })); toast('Alias cargados en este dispositivo.'); render(); }
         catch { toast('Ese archivo no es una copia de alias de Luria Lab.', { error: true }); }
       });
-      r.querySelector('#in-logo').addEventListener('change', async (e) => {
-        const f = e.target.files[0]; if (!f) return;
-        if (f.size > 2_000_000) { toast('La imagen es demasiado grande (máximo 2 MB).', { error: true }); return; }
-        await idbSet('logo', f);
-        if (logoURL) URL.revokeObjectURL(logoURL);
-        logoURL = URL.createObjectURL(f); toast('Logo puesto en este dispositivo.'); render();
-      });
-      r.querySelector('#in-importar').addEventListener('change', async (e) => {
+      r.querySelector('#in-importar')?.addEventListener('change', async (e) => {
         const files = [...e.target.files]; if (!files.length) return;
         await conCarga(null, async () => {
           const lista = [];
@@ -1227,8 +1229,8 @@ function vAjustes() {
       });
       const tipoPrev = r.querySelector('#p-tipo');
       const ajustarPrev = () => { r.querySelector('[data-solo-sesion]').hidden = tipoPrev.value === 'tutoria_caso'; };
-      tipoPrev.addEventListener('change', ajustarPrev); ajustarPrev();
-      r.querySelector('#in-horas').addEventListener('change', async (e) => {
+      if (tipoPrev) { tipoPrev.addEventListener('change', ajustarPrev); ajustarPrev(); }
+      r.querySelector('#in-horas')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
         await conCarga(null, async () => {
           const buf = await file.arrayBuffer();
@@ -1246,7 +1248,7 @@ function vAjustes() {
           toast('Plantilla de horas guardada.'); render();
         });
       });
-      r.querySelector('#in-diario').addEventListener('change', async (e) => {
+      r.querySelector('#in-diario')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
         await conCarga(null, async () => {
           await google();
@@ -1256,7 +1258,7 @@ function vAjustes() {
           toast('Plantilla del diario cambiada.', { enlace: G.enlaceDoc(id), texto: 'Ver' }); render();
         });
       });
-      r.querySelector('#in-copia').addEventListener('change', async (e) => {
+      r.querySelector('#in-copia')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
         try {
           const obj = JSON.parse(await file.text());
@@ -1713,7 +1715,6 @@ const acciones = {
     S.actualizar((s) => { s.ajustes.calendarioId = null; s.ajustes.eventos = {}; s.ajustes.calendarioActivo = false; });
     toast('Calendario quitado de Google Calendar.'); render();
   })),
-  'quitar-logo': async () => { await idbSet('logo', null); if (logoURL) URL.revokeObjectURL(logoURL); logoURL = null; render(); },
   archivar: (b) => archivar([b.dataset.id], !filtroDiario.archivadas),
   'ver-archivadas': () => { filtroDiario.archivadas = !filtroDiario.archivadas; render(); window.scrollTo(0, 0); },
   'archivar-vacias': () => archivar(S.hechas().filter((a) => !a.archivada && sinContenido(a)).map((a) => a.id), true),
@@ -2040,7 +2041,7 @@ const rutas = [
   [/^#\/diario$/, () => vDiario()],
   [/^#\/caso\/(.+)$/, (c) => vCaso(c)],
   [/^#\/exportar$/, (p) => vExportar(p)],
-  [/^#\/ajustes$/, () => vAjustes()],
+  [/^#\/ajustes$/, (p) => vAjustes(p)],
   [/^#\/hexaflex$/, () => vHexaflex()],
   [/^#\/hexaflex\/modelo$/, () => vHxModelo()],
   [/^#\/hexaflex\/p\/(\w+)$/, (k) => vHxProceso(k)],
