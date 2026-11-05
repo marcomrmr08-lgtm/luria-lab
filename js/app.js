@@ -456,9 +456,6 @@ function pendientes() {
     if (!a.docId) lista.push({ ic: 'doc', c: 'ambar', t: 'Crear diario crítico', s: `${casoApp(a)} · ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
     else if (!a.enviado && !a.noEnviar) lista.push({ ic: 'correo', c: 'ambar', t: 'Enviar diario crítico al terapeuta', s: `${casoApp(a)} · ${nombreTipo(a).toLowerCase()} del ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
   }
-  for (const a of S.hechas().filter((x) => x.tipo === 'tutoria_metodologica' && x.tarea?.docId && !x.tarea?.enviada)) {
-    lista.push({ ic: 'birrete', c: 'morado', t: `Enviar la tarea de la T. metodológica ${a.numero}`, s: a.titulo, h: rutaForm(a) });
-  }
   const d = new Date(); const dia = d.getDate();
   const mesPrev = hoyISO(new Date(d.getFullYear(), d.getMonth() - 1, 1)).slice(0, 7);
   if (dia <= 10 && S.hechas().some((a) => a.fecha.startsWith(mesPrev)) && !s.informes[mesPrev]?.enviado) {
@@ -711,7 +708,6 @@ function vFicha(id) {
   const a = S.actividad(id);
   if (!a) return vNoEncontrado();
   const tm = a.tipo === 'tutoria_metodologica';
-  const t = a.tarea || {};
   const asistencia = a.estado === 'programada' ? (a.fecha <= hoyISO() ? 'hecha' : 'programada') : a.estado;
   return {
     html: `<div class="pantalla sin-nav">${volver('#/inicio', tm ? 'Tutoría metodológica' : 'Seminario')}
@@ -722,10 +718,6 @@ function vFicha(id) {
     <form id="f-ficha" class="seccion">
       <div class="campo"><span class="etiqueta">Asistencia</span>${seg('estado', [['hecha', 'Asistí'], ['cancelada', 'No asistí'], ['programada', 'Pendiente']], asistencia)}</div>
       ${bloqueApuntes(a)}
-      ${tm ? `<section class="tarjeta"><div class="fila-entre"><span class="tipo c-morado" style="font-size:13px">Tarea de la tutoría</span>${t.enviada ? '<span class="insignia ok">Enviada</span>' : t.docId ? '<span class="insignia aviso">Sin enviar</span>' : ''}</div>
-        <textarea name="tareaTexto" rows="2" placeholder="Qué pidió el profesor y para cuándo" style="border:0;padding:0">${esc(t.texto)}</textarea>
-        <div class="botones">${t.docId ? `<a class="btn" href="${G.enlaceDoc(t.docId)}" target="_blank" rel="noopener" style="grid-column:span 2">${icon('externo', 16)}Abrir Doc de la tarea</a>` : `<button type="button" class="btn" id="b-crear-tarea" style="grid-column:span 2">${icon('doc', 16)}Crear Doc de la tarea</button>`}</div>
-        <label class="pequeno" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="tareaEnviada" value="1" ${t.enviada ? 'checked' : ''}> Ya la he enviado</label></section>` : ''}
       <button class="btn primario grande">Guardar</button>
     </form></div>`,
     mount(r) {
@@ -735,17 +727,9 @@ function vFicha(id) {
         const v = leerForm(form);
         S.actualizar(() => {
           a.estado = v.estado; a.ideaClave = (v.ideaClave || '').trim();
-          if (tm) a.tarea = { ...(a.tarea || {}), texto: (v.tareaTexto || '').trim(), enviada: Boolean(v.tareaEnviada) };
         });
       };
       form.addEventListener('submit', (e) => { e.preventDefault(); guardarFicha(); toast('Guardado.'); irA('#/inicio'); });
-      r.querySelector('#b-crear-tarea')?.addEventListener('click', (e) => conCarga(e.currentTarget, async () => {
-        guardarFicha(); await google();
-        const dir = await G.carpeta([RAIZ, 'Tareas'], S.datos().ajustes.carpetas);
-        const doc = await G.docDesdeHtml(`Tarea · T. metodológica ${a.numero} · ${a.titulo}`, D.documentoTarea(`T. metodológica ${a.numero} · ${a.titulo}`, a.fecha, a.tarea.texto), dir);
-        S.actualizar(() => { a.tarea.docId = doc; });
-        toast('Doc de la tarea creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render();
-      }));
     },
   };
 }
@@ -843,7 +827,7 @@ function vDiario() {
     else if (a.tipo === 'tutoria_caso') detalle = `<span class="texto-largo" style="font-size:14px;color:#2A332E">${(a.ideaClave || a.aprendizaje) ? '«' + esc((a.ideaClave || a.aprendizaje).slice(0, 160)) + ((a.ideaClave || a.aprendizaje).length > 160 ? '…' : '') + '»' : `<span class="suave">${a.notasDocId || a.notasArchivoId ? 'Con apuntes' : 'Sin apuntes'}</span>`}</span>${a.temas?.length ? `<span class="insignias">${a.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}`;
     else if (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') {
       const idea = ideaDe(a);
-      detalle = `${idea ? `<span class="texto-largo" style="font-size:14px;color:#2A332E">«${esc(idea)}»</span>` : ''}<span class="insignias"><span class="insignia">${a.notasDocId || a.notasArchivoId ? 'Con apuntes' : 'Sin apuntes'}</span>${a.guiaId ? '<span class="insignia ok">En la Guía</span>' : ''}${a.tipo === 'tutoria_metodologica' && a.tarea?.docId && !a.tarea?.enviada ? '<span class="insignia aviso">Tarea sin enviar</span>' : ''}</span>`;
+      detalle = `${idea ? `<span class="texto-largo" style="font-size:14px;color:#2A332E">«${esc(idea)}»</span>` : ''}<span class="insignias"><span class="insignia">${a.notasDocId || a.notasArchivoId ? 'Con apuntes' : 'Sin apuntes'}</span>${a.guiaId ? '<span class="insignia ok">En la Guía</span>' : ''}</span>`;
     } else detalle = a.descripcion ? `<span class="item-sub">${esc(a.descripcion.slice(0, 120))}</span>` : '';
     const etiqueta = esSesion(a) ? `${nombreTipo(a)} · ${casoApp(a)}` : (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') ? `${nombreTipo(a)}${a.numero ? ' ' + a.numero : ''}` : nombreTipo(a);
     html += `<div class="deslizable" data-id="${esc(a.id)}"><span class="fondo-archivar" aria-hidden="true">${icon(verArch ? 'diario' : 'papelera', 20)}${verArch ? 'Recuperar' : 'Archivar'}</span>
@@ -1127,7 +1111,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.6.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.6.2</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
