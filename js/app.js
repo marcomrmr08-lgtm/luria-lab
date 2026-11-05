@@ -59,15 +59,15 @@ function haceCuanto(ts) {
 function barraEstado() {
   if (!G.configurado()) return '';
   const n = cambiosSinGuardar();
-  const cambios = `${n} ${n === 1 ? 'cambio' : 'cambios'} sin guardar`;
+  const cambios = `${n} ${n === 1 ? 'cambio' : 'cambios'} sin sincronizar`;
   if (G.conectado()) {
-    if (subiendo || temporizador) return '<div class="estado-sync guardando" role="status"><i></i>Guardando en tu Drive…</div>';
+    if (subiendo || temporizador) return '<div class="estado-sync guardando" role="status"><i></i>Sincronizando…</div>';
     if (n) return `<button class="estado-sync aviso" data-act="sync-reintentar"><i></i>${cambios} · Toca para reintentar</button>`;
     const ultima = Number(LS.get('ll-ultima'));
-    return `<div class="estado-sync ok" role="status"><i></i>Guardado en tu Drive${ultima ? ' · ' + haceCuanto(ultima) : ''}</div>`;
+    return `<div class="estado-sync ok" role="status"><i></i>Sincronizado${ultima ? ' · ' + haceCuanto(ultima) : ''}</div>`;
   }
   if (!G.conectadoAntes() && !n) return '';
-  return `<button class="estado-sync ${n ? 'aviso' : 'neutro'}" data-act="conectar"><i></i>${n ? `${cambios} · Toca para guardar` : 'Toca para sincronizar con tu Drive'}</button>`;
+  return `<button class="estado-sync ${n ? 'aviso' : 'neutro'}" data-act="conectar"><i></i>${n ? `${cambios} · Toca para sincronizar` : 'Toca para sincronizar'}</button>`;
 }
 // Repinta solo el indicador, sin redibujar la pantalla
 function pintarEstado() {
@@ -1177,7 +1177,7 @@ function vAjustes() {
     <div class="tarjeta lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
     <p class="mini suave" style="line-height:1.45;margin-top:-4px">La app guarda sola tus últimas 5 versiones en este dispositivo: al abrirla y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</p>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.7.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.7.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1644,7 +1644,7 @@ const vNoEncontrado = () => ({ html: `<div class="pantalla sin-nav">${volver('#/
 
 // ======================= Acciones (clics) =======================
 const acciones = {
-  conectar: (b) => conCarga(b, async () => { await conectarYSincronizar(); toast('Sincronizado con tu Drive.'); render(); }),
+  conectar: (b) => conCarga(b, async () => { await conectarYSincronizar(); toast('Sincronizado.'); render(); }),
   'sync-reintentar': () => subir(),
   'copia-volver': async (b) => {
     const lista = (await idbGet('copias')) || []; const c = lista[Number(b.dataset.i)]; if (!c) return;
