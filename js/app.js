@@ -1177,7 +1177,7 @@ function vAjustes() {
     <div class="tarjeta lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
     <p class="mini suave" style="line-height:1.45;margin-top:-4px">La app guarda sola tus últimas 5 versiones en este dispositivo: al abrirla y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</p>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.7.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.8.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1749,7 +1749,7 @@ const acciones = {
   }),
 };
 // ---------- Apuntes (tutorías metodológicas, seminarios y tutorías de caso) ----------
-const conIA = (a) => a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario';
+const conGuia = (a) => a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario';
 const notasAnteriores = (a) => [a.aprendizaje, a.ficha?.guia && `Guía o esquema: ${a.ficha.guia}`, a.ficha?.aplica && `Cómo lo aplico: ${a.ficha.aplica}`, a.ficha?.dudas && `Dudas: ${a.ficha.dudas}`].filter(Boolean).join('\n\n');
 const ideaDe = (a) => a.ideaClave ?? a.ficha?.idea ?? '';
 function bloqueApuntes(a) {
@@ -1761,124 +1761,65 @@ function bloqueApuntes(a) {
     <span class="tipo c-${color(a)}" style="font-size:13px">Apuntes</span>
     ${doc ? `<div class="apunte-doc">${icon('doc', 20)}<span class="item-texto"><a href="${esc(doc.url)}" target="_blank" rel="noopener" style="font-weight:700">${esc(doc.nombre)}</a><span class="mini suave">En tu Drive · carpeta Apuntes</span></span><button type="button" class="btn texto pequeno" data-act="apuntes-quitar" data-id="${esc(a.id)}">Quitar</button></div>
       <a class="btn" href="${esc(doc.url)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir apuntes</a>`
-    : conIA(a) ? `<div class="botones"><button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}Crear doc</button><label class="btn" for="sub-apuntes" tabindex="0">${icon('subir', 16)}Subir</label></div>
-      <input type="file" id="sub-apuntes" accept=".docx,.doc,.odt,.txt,.md,.pdf,image/*" hidden>
-      <span class="mini suave" style="line-height:1.45">Escribe como quieras. Puedes crear un documento en blanco en tu Drive o subir uno tuyo (Word, PDF o una foto de tus apuntes).</span>`
     : `<button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}Crear documento de apuntes</button>
       <span class="mini suave" style="line-height:1.45">Un documento en blanco en tu Drive para escribir como quieras.</span>`}
     <div class="campo"><label for="idea-clave">Idea clave <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="idea-clave" name="ideaClave" maxlength="200" value="${esc(ideaDe(a))}" placeholder="Lo esencial, en una línea"></div>
-    ${conIA(a) ? (entrada ? `<a class="btn" href="#/guia/${esc(entrada.id)}">${icon('guia', 16)}Ver en tu Guía clínica</a>`
-      : `<button type="button" class="btn ${doc ? 'primario' : ''}" data-act="a-guia" data-id="${esc(a.id)}" ${doc ? '' : 'disabled'}>${icon('guia', 16)}Pasar a Guía clínica</button>${doc ? '' : '<span class="mini suave" style="margin-top:-6px">Primero crea o sube tus apuntes.</span>'}`) : ''}
     ${anteriores ? `<details class="pequeno"><summary class="suave">Notas que escribiste en la versión anterior</summary><p class="texto-largo" style="margin-top:8px">${esc(anteriores)}</p></details>` : ''}
-  </section>`;
+  </section>
+  ${conGuia(a) ? `<section class="tarjeta" style="gap:12px">
+    <span class="tipo c-${color(a)}" style="font-size:13px">Guía clínica</span>
+    ${entrada ? `<div class="apunte-doc">${icon('guia', 20)}<span class="item-texto"><a href="#/guia/${esc(entrada.id)}" style="font-weight:700">${esc(entrada.titulo)}</a><span class="mini suave">PDF en tu Guía clínica</span></span></div>
+      <a class="btn" href="#/guia/${esc(entrada.id)}">${icon('guia', 16)}Ver en la Guía clínica</a>`
+    : `<label class="btn" for="sub-pdf" tabindex="0">${icon('subir', 16)}Subir PDF a la Guía clínica</label>
+      <input type="file" id="sub-pdf" accept="application/pdf,.pdf" hidden>
+      <span class="mini suave" style="line-height:1.45">Cuando tengas tus apuntes pasados a limpio, súbelos en PDF y los tendrás en tu Guía clínica, ordenados por temas.</span>`}
+  </section>` : ''}`;
 }
 function montarApuntes(r, a, guardarAntes) {
-  r.querySelector('#sub-apuntes')?.addEventListener('change', (e) => {
-    const archivo = e.target.files?.[0]; if (!archivo) return;
-    const etiqueta = r.querySelector('label[for="sub-apuntes"]');
-    conCarga(etiqueta, async () => {
-      guardarAntes?.(); await google();
-      const dir = await G.carpeta([RAIZ, 'Apuntes'], S.datos().ajustes.carpetas);
-      const ext = (archivo.name.split('.').pop() || '').toLowerCase();
-      const nombre = `Apuntes · ${titulo(a)} · ${fmtNum(a.fecha).replaceAll('/', '-')}`;
-      // Word, OpenDocument y texto se convierten a Google Docs para poder pasarlos a la Guía
-      if (['docx', 'doc', 'odt', 'txt', 'md'].includes(ext)) {
-        const id = await G.subirArchivo(nombre, archivo, archivo.type || 'application/octet-stream', dir, 'application/vnd.google-apps.document');
-        S.actualizar(() => { a.notasDocId = id; a.notasNombre = nombre; delete a.notasArchivoId; });
-      } else {
-        const id = await G.subirGrande(`${nombre}.${ext}`, archivo, archivo.type || 'application/octet-stream', dir);
-        S.actualizar(() => { a.notasArchivoId = id; a.notasNombre = `${nombre}.${ext}`; a.notasMime = archivo.type; delete a.notasDocId; });
-      }
-      toast('Apuntes subidos a tu Drive.'); render();
-    });
+  r.querySelector('#sub-pdf')?.addEventListener('change', (e) => {
+    const archivo = e.target.files?.[0]; e.target.value = ''; if (!archivo) return;
+    guardarAntes?.();
+    modalPdfGuia({ actividad: a, archivo });
   });
 }
 
-// ---------- Guía clínica ----------
-const enlaceIA = 'https://claude.ai/new';
-function instruccionesIA(a, conTexto) {
-  return `Ayúdame a convertir mis apuntes de una sesión de formación de mis prácticas de psicología en una entrada de mi Guía clínica personal.
-
-Sesión: ${titulo(a)} (${fmtNum(a.fecha)})
-
-Instrucciones:
-- Usa solo lo que aparece en mis apuntes. No inventes datos, autores, referencias ni técnicas. Si algo está incompleto, márcalo como «(por completar)».
-- Si aparece cualquier dato que pueda identificar a un paciente, omítelo.
-- Escribe en español, claro y conciso, pensado para consultarlo antes de una sesión.
-- Omite las secciones para las que no haya información.
-- Devuelve solo el resultado, en Markdown, con esta estructura:
-
-# Título breve del tema
-Temas: uno o varios de: ${TEMAS.join(', ')}
-## Idea clave
-## Conceptos principales
-## Cómo aplicarlo en sesión
-(pasos, preguntas o frases útiles)
-## Cuándo usarlo y precauciones
-## Dudas para profundizar
-## Fuente
-${titulo(a)}, ${fmtNum(a.fecha)}
-
-${conTexto ? 'MIS APUNTES:' : 'Mis apuntes van en el archivo adjunto.'}`;
-}
-// Separa la línea «Temas:» del texto que devuelve la IA
-function leerRespuestaIA(txt) {
-  let temas = [];
-  const limpio = txt.replace(/\r/g, '').replace(/^\s*```(?:markdown)?\s*\n|\n```\s*$/g, '').split('\n').filter((l) => {
-    const m = l.match(/^\s*\**temas\**\s*:\s*(.+)$/i);
-    if (m) { temas = m[1].split(/[,;·]/).map((t) => t.replace(/[*_]/g, '').trim()).filter(Boolean); return false; }
-    return true;
-  }).join('\n').trim();
-  const t = limpio.match(/^#\s+(.+)$/m);
-  const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  temas = temas.map((x) => TEMAS.find((T) => norm(T) === norm(x)) || x);
-  return { titulo: t ? t[1].trim() : '', temas, contenido: limpio.replace(/^#\s+.+\n?/m, '').trim() };
-}
-function modalPasarGuia(a) {
-  const archivo = !a.notasDocId;
-  abrirModal(`<h2>Pasar a Guía clínica</h2>
-    <p class="pequeno suave" style="line-height:1.5">${icon('candado', 12)} Antes de seguir, revisa que tus apuntes no tengan nombres, iniciales ni datos que identifiquen a pacientes.</p>
-    <ol class="pasos-ia">
-      <li><b>Copia</b> ${archivo ? 'las instrucciones' : 'tus apuntes junto con las instrucciones'}.
-        <button type="button" class="btn" id="ia-copiar" ${archivo ? '' : 'disabled'}>${archivo ? `${icon('copiar', 16)}Copiar instrucciones` : '<span class="spinner" aria-hidden="true"></span> Leyendo tus apuntes…'}</button></li>
-      <li><b>Pégalo</b> en Claude o en otro chat de IA${archivo ? ` y adjunta tu archivo (<a href="${esc(G.enlaceArchivo(a.notasArchivoId))}" target="_blank" rel="noopener">descárgalo de Drive</a>)` : ''}.
-        <a class="btn" href="${enlaceIA}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir Claude</a></li>
-      <li><b>Pega aquí</b> la respuesta:
-        <textarea id="ia-resp" rows="8" placeholder="# Título del tema&#10;Temas: …&#10;## Idea clave&#10;…"></textarea></li>
-    </ol>
-    <div class="botones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ia-guardar">Guardar en la Guía</button></div>`, async (d) => {
-    let texto = instruccionesIA(a, false);
-    const bCopiar = d.querySelector('#ia-copiar');
-    const copiar = async () => {
-      try { await navigator.clipboard.writeText(texto); toast('Copiado. Pégalo en el chat de IA.'); bCopiar.innerHTML = `${icon('check', 16)}Copiado`; }
-      catch { abrirModalTexto(texto); }
-    };
-    bCopiar.addEventListener('click', copiar);
-    d.querySelector('#ia-guardar').addEventListener('click', () => {
-      const resp = d.querySelector('#ia-resp').value.trim();
-      if (resp.length < 20) { toast('Pega primero la respuesta de la IA.', { error: true }); return; }
-      const r = leerRespuestaIA(resp);
-      const entrada = { id: S.nuevoId(), titulo: r.titulo || a.titulo || titulo(a), temas: r.temas, contenido: r.contenido, actividadId: a.id, fuente: `${titulo(a)} · ${fmtNum(a.fecha)}`, fecha: a.fecha, creada: hoyISO() };
-      S.actualizar((s) => { s.guia.push(entrada); a.guiaId = entrada.id; });
-      cerrarModal(); toast('Añadido a tu Guía clínica.'); irA(`#/guia/${entrada.id}`);
-    });
-    if (!archivo) {
-      try {
+// ---------- Guía clínica (PDF por tutoría o seminario) ----------
+// Sube un PDF a «Luria Lab/Guía clínica» y crea su entrada en la guía
+function modalPdfGuia({ actividad = null, archivo = null } = {}) {
+  const a = actividad;
+  abrirModal(`<h2>Añadir a la Guía clínica</h2>
+    <form id="f-pdf" class="seccion">
+      ${archivo ? `<div class="apunte-doc">${icon('doc', 20)}<span class="item-texto"><b>${esc(archivo.name)}</b><span class="mini suave">${(archivo.size / 1048576).toFixed(1)} MB</span></span></div>`
+        : '<div class="campo"><label for="g-pdf">PDF</label><input type="file" id="g-pdf" name="pdf" accept="application/pdf,.pdf" required></div>'}
+      <div class="campo"><label for="g-titulo">Título</label><input id="g-titulo" name="titulo" required value="${esc(a?.titulo || '')}" placeholder="p. ej. Análisis funcional"></div>
+      <div class="campo"><span class="etiqueta">Temas</span><div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="gt-${i}" name="temas" value="${esc(t)}"><label for="gt-${i}">${esc(t)}</label>`).join('')}</div></div>
+      ${a ? '' : '<div class="campo"><label for="g-fuente">Fuente <span class="suave" style="font-weight:400">(opcional)</span></label><input id="g-fuente" name="fuente" placeholder="Libro, curso, sesión…"></div>'}
+      <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="g-subir">Subir</button></div>
+    </form>`, (d) => {
+    d.querySelector('#f-pdf').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const v = leerForm(ev.target);
+      const pdf = archivo || d.querySelector('#g-pdf').files?.[0];
+      if (!pdf) return;
+      if (!/pdf$/i.test(pdf.type) && !/\.pdf$/i.test(pdf.name)) { toast('Elige un archivo PDF.', { error: true }); return; }
+      conCarga(d.querySelector('#g-subir'), async () => {
         await google();
-        const apuntes = (await G.textoDoc(a.notasDocId)).replace(/^﻿/, '').trim();
-        if (!d.isConnected || !d.open) return;
-        if (apuntes.length < 30) { bCopiar.innerHTML = 'Tus apuntes están casi vacíos'; toast('Escribe tus apuntes en el documento antes de pasarlos a la Guía.', { error: true }); return; }
-        texto = `${instruccionesIA(a, true)}\n\n${apuntes}`;
-        bCopiar.disabled = false; bCopiar.innerHTML = `${icon('copiar', 16)}Copiar apuntes e instrucciones`;
-      } catch (e) { bCopiar.innerHTML = 'No se pudieron leer'; toast(e.message || 'No se pudieron leer tus apuntes.', { error: true }); }
-    }
+        const dir = await G.carpeta([RAIZ, 'Guía clínica'], S.datos().ajustes.carpetas);
+        const tituloPdf = v.titulo.trim();
+        const id = await G.subirGrande(`${tituloPdf}.pdf`, pdf, 'application/pdf', dir);
+        const entrada = { id: S.nuevoId(), tipo: 'pdf', archivoId: id, titulo: tituloPdf, temas: [].concat(v.temas || []),
+          actividadId: a?.id || null, fuente: a ? `${titulo(a)} · ${fmtNum(a.fecha)}` : (v.fuente || '').trim(), fecha: a?.fecha || hoyISO(), creada: hoyISO() };
+        S.actualizar((s) => { s.guia.push(entrada); if (a) a.guiaId = entrada.id; });
+        cerrarModal(); toast('PDF añadido a tu Guía clínica.'); irA(`#/guia/${entrada.id}`);
+      });
+    });
   });
 }
 // Si el navegador no deja copiar, se muestra el texto para copiarlo a mano
 function abrirModalTexto(texto) {
   abrirModal(`<h2>Copia este texto</h2><p class="pequeno suave">Tu navegador no deja copiar automáticamente. Mantén pulsado el texto, selecciónalo todo y cópialo.</p><textarea rows="12" readonly style="font-size:13px">${esc(texto)}</textarea><div class="botones"><button class="btn primario" data-cerrar>Cerrar</button></div>`, (d) => { const t = d.querySelector('textarea'); t.focus(); t.select(); });
 }
-// Markdown sencillo → HTML (títulos, listas, negrita y cursiva)
+// Markdown sencillo → HTML (para entradas de texto antiguas)
 function md(txt) {
   const linea = (l) => esc(l).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<i>$2</i>');
   const out = []; let lista = null;
@@ -1899,16 +1840,16 @@ function vGuia(params) {
   const tema = params?.get('tema') || '';
   const q = (params?.get('q') || '').toLowerCase();
   const temas = [...new Set([...TEMAS.filter((t) => g.some((e) => e.temas?.includes(t))), ...g.flatMap((e) => e.temas || [])])];
-  const lista = g.filter((e) => (!tema || e.temas?.includes(tema)) && (!q || [e.titulo, e.contenido, ...(e.temas || [])].join(' ').toLowerCase().includes(q)))
+  const lista = g.filter((e) => (!tema || e.temas?.includes(tema)) && (!q || [e.titulo, e.fuente, e.contenido, ...(e.temas || [])].join(' ').toLowerCase().includes(q)))
     .sort((x, y) => (y.fecha || '').localeCompare(x.fecha || ''));
   const enlace = (t) => `#/guia${t ? `?tema=${encodeURIComponent(t)}` : ''}`;
   return {
     html: `<div class="pantalla"><h1 class="titulo">Guía clínica</h1>
-    ${g.length ? `<input type="search" id="buscar-guia" placeholder="Buscar en tu guía" value="${esc(params?.get('q') || '')}" autocomplete="off">
-      <div class="chips"><a href="${enlace('')}" class="chip ${!tema ? 'oscuro' : ''}">Todo</a>${temas.map((t) => `<a href="${enlace(t)}" class="chip ${tema === t ? 'oscuro' : ''}">${esc(t)}</a>`).join('')}</div>
-      <div class="seccion">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="item"><span class="item-texto"><span class="item-titulo">${esc(e.titulo)}</span><span class="item-sub">${esc(e.fuente || '')}</span>${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}</span>${icon('sig', 18)}</a>`).join('') || '<p class="vacio">Nada coincide con la búsqueda.</p>'}</div>`
-    : `<div class="tarjeta" style="gap:10px"><p style="line-height:1.5">Aquí se irán reuniendo tus apuntes de las tutorías metodológicas y los seminarios, ordenados y listos para consultar.</p><p class="pequeno suave" style="line-height:1.5">Abre una tutoría o un seminario, crea o sube tus apuntes y pulsa «Pasar a Guía clínica».</p></div>`}
-    <button class="btn" data-act="guia-manual">${icon('mas', 16)}Añadir una entrada a mano</button>
+    ${g.length ? `<input type="search" id="buscar-guia" placeholder="Buscar por título, tema o sesión" value="${esc(params?.get('q') || '')}" autocomplete="off">
+      ${temas.length ? `<div class="chips"><a href="${enlace('')}" class="chip ${!tema ? 'oscuro' : ''}">Todo</a>${temas.map((t) => `<a href="${enlace(t)}" class="chip ${tema === t ? 'oscuro' : ''}">${esc(t)}</a>`).join('')}</div>` : ''}
+      <div class="seccion">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="item"><span class="icono-caja bg-primario">${icon(e.tipo === 'pdf' ? 'doc' : 'guia', 20)}</span><span class="item-texto"><span class="item-titulo">${esc(e.titulo)}</span><span class="item-sub">${esc(e.fuente || '')}</span>${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}</span>${icon('sig', 18)}</a>`).join('') || '<p class="vacio">Nada coincide con la búsqueda.</p>'}</div>`
+    : `<div class="tarjeta" style="gap:10px"><p style="line-height:1.5">Aquí se reúnen en PDF tus apuntes de las tutorías metodológicas y los seminarios, ordenados por temas.</p><p class="pequeno suave" style="line-height:1.5">Abre una tutoría o un seminario y pulsa «Subir PDF a la Guía clínica». También puedes subir aquí cualquier otro PDF que quieras tener a mano.</p></div>`}
+    <button class="btn" data-act="guia-pdf">${icon('subir', 16)}Subir un PDF</button>
     </div>${nav('guia')}`,
     mount(r) {
       const b = r.querySelector('#buscar-guia');
@@ -1924,54 +1865,53 @@ function vGuiaEntrada(id) {
   const e = S.datos().guia.find((x) => x.id === id);
   if (!e) return vNoEncontrado();
   const act = e.actividadId && S.actividad(e.actividadId);
+  const pdf = e.tipo === 'pdf';
   return {
-    html: `<div class="pantalla sin-nav">${volver('#/guia', 'Guía clínica')}
+    html: `<div class="pantalla sin-nav ${pdf ? 'ancha-pdf' : ''}">${volver('#/guia', 'Guía clínica')}
     <article class="guia-entrada">
       <h1 class="titulo">${esc(e.titulo)}</h1>
       <span class="pequeno suave">${act ? `<a href="${rutaVer(act)}">${esc(e.fuente)}</a>` : esc(e.fuente || '')}</span>
       ${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<a class="insignia" href="#/guia?tema=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</span>` : ''}
-      <div class="md">${md(e.contenido)}</div>
+      ${pdf ? `<a class="btn primario" href="${esc(G.enlaceArchivo(e.archivoId))}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir el PDF</a>
+        <iframe class="visor-pdf" src="https://drive.google.com/file/d/${encodeURIComponent(e.archivoId)}/preview" title="${esc(e.titulo)}" loading="lazy" allow="autoplay"></iframe>
+        <span class="mini suave">Si no ves el PDF aquí, ábrelo con el botón: se ve con tu cuenta de Google.</span>`
+        : `<div class="md">${md(e.contenido)}</div>`}
     </article>
-    <div class="botones"><button class="btn" data-act="guia-editar" data-id="${esc(e.id)}">${icon('editar', 16)}Editar</button><button class="btn" data-act="guia-copiar" data-id="${esc(e.id)}">${icon('copiar', 16)}Copiar</button></div>
-    <button class="btn texto peligro" data-act="guia-borrar" data-id="${esc(e.id)}">Eliminar de la guía</button>
+    <div class="botones"><button class="btn" data-act="guia-editar" data-id="${esc(e.id)}">${icon('editar', 16)}Editar título y temas</button>${pdf ? '' : `<button class="btn" data-act="guia-copiar" data-id="${esc(e.id)}">${icon('copiar', 16)}Copiar</button>`}</div>
+    <button class="btn texto peligro" data-act="guia-borrar" data-id="${esc(e.id)}">Quitar de la guía</button>
     </div>`,
   };
 }
 function modalEntradaGuia(e) {
-  const nueva = !e;
-  abrirModal(`<h2>${nueva ? 'Nueva entrada' : 'Editar entrada'}</h2>
+  abrirModal(`<h2>Editar</h2>
     <form id="f-guia" class="seccion">
-      <div class="campo"><label for="g-titulo">Título</label><input id="g-titulo" name="titulo" required value="${esc(e?.titulo || '')}"></div>
-      <div class="campo"><span class="etiqueta">Temas</span><div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="gt-${i}" name="temas" value="${esc(t)}" ${(e?.temas || []).includes(t) ? 'checked' : ''}><label for="gt-${i}">${esc(t)}</label>`).join('')}</div></div>
-      <div class="campo"><label for="g-cont">Contenido</label><textarea id="g-cont" name="contenido" rows="12" placeholder="Puedes usar ## para títulos y - para listas">${esc(e?.contenido || '')}</textarea></div>
-      ${nueva ? '<div class="campo"><label for="g-fuente">Fuente <span class="suave" style="font-weight:400">(opcional)</span></label><input id="g-fuente" name="fuente" placeholder="Libro, sesión, curso…"></div>' : ''}
+      <div class="campo"><label for="g-titulo">Título</label><input id="g-titulo" name="titulo" required value="${esc(e.titulo || '')}"></div>
+      <div class="campo"><span class="etiqueta">Temas</span><div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="gt-${i}" name="temas" value="${esc(t)}" ${(e.temas || []).includes(t) ? 'checked' : ''}><label for="gt-${i}">${esc(t)}</label>`).join('')}</div></div>
+      ${e.tipo === 'pdf' ? '' : `<div class="campo"><label for="g-cont">Contenido</label><textarea id="g-cont" name="contenido" rows="12">${esc(e.contenido || '')}</textarea></div>`}
       <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
     </form>`, (d) => {
     d.querySelector('#f-guia').addEventListener('submit', (ev) => {
       ev.preventDefault(); const v = leerForm(ev.target);
-      const otros = (e?.temas || []).filter((t) => !TEMAS.includes(t));
-      const datos = { titulo: v.titulo.trim(), temas: [...[].concat(v.temas || []), ...otros], contenido: (v.contenido || '').trim() };
-      let destino = e?.id;
-      S.actualizar((s) => {
-        if (e) Object.assign(e, datos);
-        else { destino = S.nuevoId(); s.guia.push({ id: destino, ...datos, fuente: (v.fuente || '').trim(), fecha: hoyISO(), creada: hoyISO() }); }
+      const otros = (e.temas || []).filter((t) => !TEMAS.includes(t));
+      S.actualizar(() => {
+        e.titulo = v.titulo.trim(); e.temas = [...[].concat(v.temas || []), ...otros];
+        if (v.contenido !== undefined) e.contenido = v.contenido.trim();
       });
-      cerrarModal(); toast('Guardado.'); irA(`#/guia/${destino}`);
+      cerrarModal(); toast('Guardado.'); render();
     });
   });
 }
 Object.assign(acciones, {
-  'a-guia': (b) => { const a = S.actividad(b.dataset.id); const f = app.querySelector('#f-ficha, #f-tc'); if (f) guardarSinSalir(a, f); modalPasarGuia(a); },
   'apuntes-quitar': (b) => confirmar('¿Quitar los apuntes de esta actividad?', 'El documento sigue en tu Drive; solo deja de estar enlazado aquí.', 'Quitar', () => {
     const a = S.actividad(b.dataset.id); S.actualizar(() => { delete a.notasDocId; delete a.notasArchivoId; delete a.notasNombre; delete a.notasMime; }); render();
   }),
-  'guia-manual': () => modalEntradaGuia(null),
+  'guia-pdf': () => modalPdfGuia(),
   'guia-editar': (b) => modalEntradaGuia(S.datos().guia.find((x) => x.id === b.dataset.id)),
   'guia-copiar': async (b) => {
     const e = S.datos().guia.find((x) => x.id === b.dataset.id); const t = `# ${e.titulo}\n\n${e.contenido}`;
     try { await navigator.clipboard.writeText(t); toast('Copiado.'); } catch { abrirModalTexto(t); }
   },
-  'guia-borrar': (b) => confirmar('¿Eliminar esta entrada de la guía?', 'Tus apuntes originales no se tocan.', 'Eliminar', () => {
+  'guia-borrar': (b) => confirmar('¿Quitar de la guía?', 'Desaparece de la Guía clínica. Si es un PDF, el archivo sigue en tu Drive, en la carpeta «Guía clínica».', 'Quitar', () => {
     const id = b.dataset.id;
     S.actualizar((s) => { for (const a of s.actividades) if (a.guiaId === id) delete a.guiaId; });
     S.borrar([id]); S.actualizar((s) => { s.guia = s.guia.filter((x) => x.id !== id); }); irA('#/guia');

@@ -328,3 +328,5 @@ button.estado-sync { cursor: pointer; }
   .lateral .estado-sync { position: static; border-radius: 12px; border: 1px solid var(--linea); justify-content: flex-start; text-align: left; padding: 10px 12px; line-height: 1.35; }
   .lateral .estado-sync.aviso, .lateral .estado-sync.neutro { border-color: transparent; }
 }
+.visor-pdf { width: 100%; height: 70vh; min-height: 420px; border: 1px solid var(--linea); border-radius: 16px; background: var(--superficie); }
+.es-escritorio .pantalla.ancha-pdf { max-width: 960px; }
