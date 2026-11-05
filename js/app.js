@@ -1177,7 +1177,7 @@ function vAjustes() {
     <div class="tarjeta lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
     <p class="mini suave" style="line-height:1.45;margin-top:-4px">La app guarda sola tus últimas 5 versiones en este dispositivo: al abrirla y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</p>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.8.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.9.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1768,7 +1768,7 @@ function bloqueApuntes(a) {
   </section>
   ${conGuia(a) ? `<section class="tarjeta" style="gap:12px">
     <span class="tipo c-${color(a)}" style="font-size:13px">Guía clínica</span>
-    ${entrada ? `<div class="apunte-doc">${icon('guia', 20)}<span class="item-texto"><a href="#/guia/${esc(entrada.id)}" style="font-weight:700">${esc(entrada.titulo)}</a><span class="mini suave">PDF en tu Guía clínica</span></span></div>
+    ${entrada ? `<div class="apunte-doc">${entrada.emoji ? `<span style="font-size:22px">${esc(entrada.emoji)}</span>` : icon('guia', 20)}<span class="item-texto"><a href="#/guia/${esc(entrada.id)}" style="font-weight:700">${esc(entrada.titulo)}</a><span class="mini suave">PDF en tu Guía clínica</span></span></div>
       <a class="btn" href="#/guia/${esc(entrada.id)}">${icon('guia', 16)}Ver en la Guía clínica</a>`
     : `<label class="btn" for="sub-pdf" tabindex="0">${icon('subir', 16)}Subir PDF a la Guía clínica</label>
       <input type="file" id="sub-pdf" accept="application/pdf,.pdf" hidden>
@@ -1784,6 +1784,15 @@ function montarApuntes(r, a, guardarAntes) {
 }
 
 // ---------- Guía clínica (PDF por tutoría o seminario) ----------
+const EMOJIS_GUIA = ['🧠', '💬', '📋', '🔍', '🧩', '💡', '🎯', '🌱', '🌊', '😟', '😔', '🧒', '👨‍👩‍👧', '🧘', '❤️', '⚖️', '🔄', '📚'];
+function selectorEmoji(actual = '') {
+  const propio = actual && !EMOJIS_GUIA.includes(actual) ? actual : '';
+  return `<div class="campo"><span class="etiqueta">Icono <span class="suave" style="font-weight:400">(opcional)</span></span>
+    <div class="emojis"><input type="radio" name="emoji" id="em-no" value="" ${!actual ? 'checked' : ''}><label for="em-no" class="em-ninguno">Ninguno</label>${EMOJIS_GUIA.map((e, i) => `<input type="radio" name="emoji" id="em-${i}" value="${e}" ${actual === e ? 'checked' : ''}><label for="em-${i}">${e}</label>`).join('')}</div>
+    <input type="text" name="emojiOtro" maxlength="8" value="${esc(propio)}" placeholder="Otro emoji del teclado" autocomplete="off" style="max-width:280px"></div>`;
+}
+const emojiDe = (v) => ((v.emojiOtro || '').trim() || v.emoji || '').slice(0, 8);
+const iconoGuia = (e) => e.emoji ? `<span class="icono-caja emoji-caja" aria-hidden="true">${esc(e.emoji)}</span>` : `<span class="icono-caja bg-primario">${icon(e.tipo === 'pdf' ? 'doc' : 'guia', 20)}</span>`;
 // Sube un PDF a «Luria Lab/Guía clínica» y crea su entrada en la guía
 function modalPdfGuia({ actividad = null, archivo = null } = {}) {
   const a = actividad;
@@ -1792,6 +1801,7 @@ function modalPdfGuia({ actividad = null, archivo = null } = {}) {
       ${archivo ? `<div class="apunte-doc">${icon('doc', 20)}<span class="item-texto"><b>${esc(archivo.name)}</b><span class="mini suave">${(archivo.size / 1048576).toFixed(1)} MB</span></span></div>`
         : '<div class="campo"><label for="g-pdf">PDF</label><input type="file" id="g-pdf" name="pdf" accept="application/pdf,.pdf" required></div>'}
       <div class="campo"><label for="g-titulo">Título</label><input id="g-titulo" name="titulo" required value="${esc(a?.titulo || '')}" placeholder="p. ej. Análisis funcional"></div>
+      ${selectorEmoji()}
       <div class="campo"><span class="etiqueta">Temas</span><div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="gt-${i}" name="temas" value="${esc(t)}"><label for="gt-${i}">${esc(t)}</label>`).join('')}</div></div>
       ${a ? '' : '<div class="campo"><label for="g-fuente">Fuente <span class="suave" style="font-weight:400">(opcional)</span></label><input id="g-fuente" name="fuente" placeholder="Libro, curso, sesión…"></div>'}
       <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="g-subir">Subir</button></div>
@@ -1807,7 +1817,7 @@ function modalPdfGuia({ actividad = null, archivo = null } = {}) {
         const dir = await G.carpeta([RAIZ, 'Guía clínica'], S.datos().ajustes.carpetas);
         const tituloPdf = v.titulo.trim();
         const id = await G.subirGrande(`${tituloPdf}.pdf`, pdf, 'application/pdf', dir);
-        const entrada = { id: S.nuevoId(), tipo: 'pdf', archivoId: id, titulo: tituloPdf, temas: [].concat(v.temas || []),
+        const entrada = { id: S.nuevoId(), tipo: 'pdf', archivoId: id, titulo: tituloPdf, emoji: emojiDe(v), temas: [].concat(v.temas || []),
           actividadId: a?.id || null, fuente: a ? `${titulo(a)} · ${fmtNum(a.fecha)}` : (v.fuente || '').trim(), fecha: a?.fecha || hoyISO(), creada: hoyISO() };
         S.actualizar((s) => { s.guia.push(entrada); if (a) a.guiaId = entrada.id; });
         cerrarModal(); toast('PDF añadido a tu Guía clínica.'); irA(`#/guia/${entrada.id}`);
@@ -1847,7 +1857,7 @@ function vGuia(params) {
     html: `<div class="pantalla"><h1 class="titulo">Guía clínica</h1>
     ${g.length ? `<input type="search" id="buscar-guia" placeholder="Buscar por título, tema o sesión" value="${esc(params?.get('q') || '')}" autocomplete="off">
       ${temas.length ? `<div class="chips"><a href="${enlace('')}" class="chip ${!tema ? 'oscuro' : ''}">Todo</a>${temas.map((t) => `<a href="${enlace(t)}" class="chip ${tema === t ? 'oscuro' : ''}">${esc(t)}</a>`).join('')}</div>` : ''}
-      <div class="seccion">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="item"><span class="icono-caja bg-primario">${icon(e.tipo === 'pdf' ? 'doc' : 'guia', 20)}</span><span class="item-texto"><span class="item-titulo">${esc(e.titulo)}</span><span class="item-sub">${esc(e.fuente || '')}</span>${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}</span>${icon('sig', 18)}</a>`).join('') || '<p class="vacio">Nada coincide con la búsqueda.</p>'}</div>`
+      <div class="seccion">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="item">${iconoGuia(e)}<span class="item-texto"><span class="item-titulo">${esc(e.titulo)}</span><span class="item-sub">${esc(e.fuente || '')}</span>${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}</span>${icon('sig', 18)}</a>`).join('') || '<p class="vacio">Nada coincide con la búsqueda.</p>'}</div>`
     : `<div class="tarjeta" style="gap:10px"><p style="line-height:1.5">Aquí se reúnen en PDF tus apuntes de las tutorías metodológicas y los seminarios, ordenados por temas.</p><p class="pequeno suave" style="line-height:1.5">Abre una tutoría o un seminario y pulsa «Subir PDF a la Guía clínica». También puedes subir aquí cualquier otro PDF que quieras tener a mano.</p></div>`}
     <button class="btn" data-act="guia-pdf">${icon('subir', 16)}Subir un PDF</button>
     </div>${nav('guia')}`,
@@ -1869,7 +1879,7 @@ function vGuiaEntrada(id) {
   return {
     html: `<div class="pantalla sin-nav ${pdf ? 'ancha-pdf' : ''}">${volver('#/guia', 'Guía clínica')}
     <article class="guia-entrada">
-      <h1 class="titulo">${esc(e.titulo)}</h1>
+      <h1 class="titulo">${e.emoji ? `<span class="emoji-titulo" aria-hidden="true">${esc(e.emoji)}</span> ` : ''}${esc(e.titulo)}</h1>
       <span class="pequeno suave">${act ? `<a href="${rutaVer(act)}">${esc(e.fuente)}</a>` : esc(e.fuente || '')}</span>
       ${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<a class="insignia" href="#/guia?tema=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</span>` : ''}
       ${pdf ? `<div class="visor-pdf" id="visor-pdf" role="button" tabindex="0" aria-label="Ver el PDF a pantalla completa"><p class="mini suave visor-msg"><span class="spinner" aria-hidden="true"></span> Cargando el PDF…</p></div>
@@ -1959,6 +1969,7 @@ function modalEntradaGuia(e) {
   abrirModal(`<h2>Editar</h2>
     <form id="f-guia" class="seccion">
       <div class="campo"><label for="g-titulo">Título</label><input id="g-titulo" name="titulo" required value="${esc(e.titulo || '')}"></div>
+      ${selectorEmoji(e.emoji)}
       <div class="campo"><span class="etiqueta">Temas</span><div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="gt-${i}" name="temas" value="${esc(t)}" ${(e.temas || []).includes(t) ? 'checked' : ''}><label for="gt-${i}">${esc(t)}</label>`).join('')}</div></div>
       ${e.tipo === 'pdf' ? '' : `<div class="campo"><label for="g-cont">Contenido</label><textarea id="g-cont" name="contenido" rows="12">${esc(e.contenido || '')}</textarea></div>`}
       <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
@@ -1967,7 +1978,7 @@ function modalEntradaGuia(e) {
       ev.preventDefault(); const v = leerForm(ev.target);
       const otros = (e.temas || []).filter((t) => !TEMAS.includes(t));
       S.actualizar(() => {
-        e.titulo = v.titulo.trim(); e.temas = [...[].concat(v.temas || []), ...otros];
+        e.titulo = v.titulo.trim(); e.emoji = emojiDe(v); e.temas = [...[].concat(v.temas || []), ...otros];
         if (v.contenido !== undefined) e.contenido = v.contenido.trim();
       });
       cerrarModal(); toast('Guardado.'); render();

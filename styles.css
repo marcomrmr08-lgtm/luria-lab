@@ -338,3 +338,11 @@ button.estado-sync { cursor: pointer; }
 .pdf-hojas { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 12px 8px calc(env(safe-area-inset-bottom) + 12px); }
 .pdf-lienzo { display: flex; flex-direction: column; gap: 10px; margin: 0 auto; max-width: none; }
 .es-escritorio .pantalla.ancha-pdf { max-width: 960px; }
+.emojis { display: flex; flex-wrap: wrap; gap: 6px; }
+.emojis input { position: absolute; opacity: 0; pointer-events: none; }
+.emojis label { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 22px; border-radius: 12px; border: 1px solid var(--linea); background: var(--superficie); cursor: pointer; }
+.emojis label.em-ninguno { width: auto; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--suave); }
+.emojis input:checked + label { border-color: var(--verde); box-shadow: inset 0 0 0 1.5px var(--verde); background: var(--verde-cl); }
+.emojis input:focus-visible + label { outline: 2px solid var(--verde); outline-offset: 2px; }
+.emoji-caja { font-size: 22px; background: var(--verde-cl); }
+.emoji-titulo { font-size: 0.9em; }
