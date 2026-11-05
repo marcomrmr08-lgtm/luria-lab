@@ -313,3 +313,18 @@ dialog#modal::backdrop { background: rgba(18, 21, 48, 0.5); }
 .md p { margin: 6px 0; }
 .md ul, .md ol { margin: 6px 0; padding-left: 22px; }
 .md li { margin: 3px 0; }
+
+/* Indicador de guardado en Drive */
+.estado-sync { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 7px 16px; border: 0; font: inherit; font-size: 13px; font-weight: 600; background: var(--superficie); color: var(--suave); border-bottom: 1px solid var(--linea); position: sticky; top: 0; z-index: 4; }
+button.estado-sync { cursor: pointer; }
+.estado-sync i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.estado-sync.ok i { background: var(--exito); }
+.estado-sync.guardando i { background: var(--verde); animation: latido 1s ease-in-out infinite; }
+.estado-sync.aviso { background: var(--ambar-cl); color: #7A4B12; border-bottom-color: transparent; }
+.estado-sync.aviso i { background: #C27A1A; }
+.estado-sync.neutro { background: var(--verde-cl); color: var(--verde); border-bottom-color: transparent; }
+@keyframes latido { 50% { opacity: .3; } }
+@media (min-width: 960px) {
+  .lateral .estado-sync { position: static; border-radius: 12px; border: 1px solid var(--linea); justify-content: flex-start; text-align: left; padding: 10px 12px; line-height: 1.35; }
+  .lateral .estado-sync.aviso, .lateral .estado-sync.neutro { border-color: transparent; }
+}

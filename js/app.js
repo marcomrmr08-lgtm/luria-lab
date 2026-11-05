@@ -19,23 +19,78 @@ idbGet('logo').then((b) => { if (b) { logoURL = URL.createObjectURL(b); render()
 
 // ======================= Sincronización con Drive =======================
 let temporizador = null; let subiendo = false; let otraVez = false;
-const marcarPendiente = (v) => { try { if (v) localStorage.setItem('ll-pendiente', '1'); else localStorage.removeItem('ll-pendiente'); } catch {} };
-const hayPendiente = () => { try { return localStorage.getItem('ll-pendiente') === '1'; } catch { return false; } };
+const LS = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, String(v)); } catch {} },
+};
+// Cuántos cambios hay guardados solo en este dispositivo (aún no en Drive)
+const cambiosSinGuardar = () => Number(LS.get('ll-pendientes')) || (LS.get('ll-pendiente') === '1' ? 1 : 0);
+const hayPendiente = () => cambiosSinGuardar() > 0;
+function marcarPendiente(v) {
+  if (v) LS.set('ll-pendientes', cambiosSinGuardar() + 1);
+  else { LS.set('ll-pendientes', null); LS.set('ll-pendiente', null); }
+  pintarEstado();
+}
 S.siempreAlGuardar(() => {
   if (!G.conectado()) { marcarPendiente(true); return; }
   clearTimeout(temporizador);
   temporizador = setTimeout(subir, 1200);
+  pintarEstado();
 });
 async function subir() {
+  temporizador = null;
   if (subiendo) { otraVez = true; return; }
-  subiendo = true;
-  try { await G.escribirDatos(S.datos()); marcarPendiente(false); } catch (e) { marcarPendiente(true); console.warn('No se pudo sincronizar', e); }
+  if (!G.conectado()) { marcarPendiente(true); return; }
+  subiendo = true; pintarEstado();
+  try { await G.escribirDatos(S.datos()); marcarPendiente(false); LS.set('ll-ultima', Date.now()); }
+  catch (e) { marcarPendiente(true); console.warn('No se pudo sincronizar', e); }
   sincronizarCalendario().catch((e) => console.warn('Calendario', e));
-  subiendo = false;
+  subiendo = false; pintarEstado();
   if (otraVez) { otraVez = false; subir(); }
+}
+// ---------- Indicador de guardado ----------
+function haceCuanto(ts) {
+  const min = Math.floor((Date.now() - ts) / 60000);
+  if (min < 1) return 'ahora mismo';
+  if (min < 60) return `hace ${min} min`;
+  const d = new Date(Number(ts));
+  return d.toDateString() === new Date().toDateString() ? `a las ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : `el ${fmtCorta(d.toISOString().slice(0, 10))}`;
+}
+function barraEstado() {
+  if (!G.configurado()) return '';
+  const n = cambiosSinGuardar();
+  const cambios = `${n} ${n === 1 ? 'cambio' : 'cambios'} sin guardar`;
+  if (G.conectado()) {
+    if (subiendo || temporizador) return '<div class="estado-sync guardando" role="status"><i></i>Guardando en tu Drive…</div>';
+    if (n) return `<button class="estado-sync aviso" data-act="sync-reintentar"><i></i>${cambios} · Toca para reintentar</button>`;
+    const ultima = Number(LS.get('ll-ultima'));
+    return `<div class="estado-sync ok" role="status"><i></i>Guardado en tu Drive${ultima ? ' · ' + haceCuanto(ultima) : ''}</div>`;
+  }
+  if (!G.conectadoAntes() && !n) return '';
+  return `<button class="estado-sync ${n ? 'aviso' : 'neutro'}" data-act="conectar"><i></i>${n ? `${cambios} · Toca para guardar` : 'Toca para sincronizar con tu Drive'}</button>`;
+}
+// Repinta solo el indicador, sin redibujar la pantalla
+function pintarEstado() {
+  const html = barraEstado();
+  document.querySelectorAll('.estado-sync, .estado-vacio').forEach((el) => {
+    const t = document.createElement('template'); t.innerHTML = html || '<span class="estado-vacio"></span>';
+    el.replaceWith(t.content.firstElementChild);
+  });
+}
+setInterval(pintarEstado, 30000);
+window.addEventListener('online', () => { if (G.conectado() && hayPendiente()) subir(); });
+// ---------- Copias automáticas en el dispositivo (las 5 últimas) ----------
+async function guardarCopia(motivo, siPasaron = 0) {
+  try {
+    const lista = (await idbGet('copias')) || [];
+    if (siPasaron && lista[0] && Date.now() - lista[0].fecha < siPasaron) return;
+    lista.unshift({ fecha: Date.now(), motivo, datos: JSON.parse(JSON.stringify(S.datos())) });
+    await idbSet('copias', lista.slice(0, 5));
+  } catch (e) { console.warn('Copia automática', e); }
 }
 async function conectarYSincronizar() {
   await G.conectar({ calendario: Boolean(S.datos().ajustes.calendarioActivo) });
+  await guardarCopia('Antes de juntar con tu Drive', 3600e3);
   const remoto = await G.leerDatos();
   // Nunca se sustituye una copia por otra: se juntan las dos, para no perder nada
   if (remoto) {
@@ -48,7 +103,7 @@ async function conectarYSincronizar() {
   let limpio = false; try { limpio = localStorage.getItem('ll-limpieza-correos') === '1'; } catch {}
   if (!limpio) { await G.recrearDatos(S.datos()); try { localStorage.setItem('ll-limpieza-correos', '1'); } catch {} }
   else await G.escribirDatos(S.datos());
-  marcarPendiente(false);
+  marcarPendiente(false); LS.set('ll-ultima', Date.now()); pintarEstado();
   sincronizarCalendario().catch((e) => console.warn('Calendario', e));
   subirAudiosPendientes().catch((e) => console.warn('Audios', e));
 }
@@ -471,7 +526,7 @@ function vInicio() {
   const c = S.conteos(); const total = S.totalHoras(); const obj = Number(s.ajustes.objetivoHoras) || 450;
   const tmHechas = c.tutoria_metodologica; const semHechas = c.seminario;
   const plan = S.planSesiones();
-  const banda = G.configurado() && !G.conectado()
+  const banda = G.configurado() && !G.conectado() && !G.conectadoAntes()
     ? `<section class="banda"><b>${G.conectadoAntes() ? 'Vuelve a conectar con Google' : 'Conecta tu cuenta de Google'}</b><p>${hayPendiente() ? '<b>Tienes cambios que aún no están guardados en tu Drive.</b> ' : ''}Así tus registros quedan guardados en tu Drive y no se pierden si cambias de móvil o borras la app. La app no tiene acceso a tu correo.</p><button class="btn" data-act="conectar">Conectar con Google</button></section>`
     : !G.configurado() ? `<div class="aviso-caja">${icon('candado', 18)}<span>Modo prueba: tus datos se guardan solo en este dispositivo.</span></div>` : '';
   const empezar = !s.ajustes.nombre || !s.ajustes.plantillaHorasNombre
@@ -1032,6 +1087,13 @@ function vExportar(params) {
 }
 
 // ---------- Ajustes ----------
+async function pintarCopias(r) {
+  const caja = r.querySelector('#lista-copias'); if (!caja) return;
+  let lista = []; try { lista = (await idbGet('copias')) || []; } catch {}
+  const fecha = (ts) => { const d = new Date(ts); return `${fmtCorta(d.toISOString().slice(0, 10))}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  caja.innerHTML = lista.length ? lista.map((c, i) => `<div class="fila"><span class="item-texto"><span style="font-size:15px">${fecha(c.fecha)}</span><span class="item-sub">${esc(c.motivo)} · ${((n) => `${n} ${n === 1 ? 'actividad hecha' : 'actividades hechas'}`)((c.datos.actividades || []).filter((a) => a.estado === 'hecha').length)}</span></span><button class="btn texto" data-act="copia-volver" data-i="${i}">Volver a esta</button></div>`).join('')
+    : '<p class="mini suave" style="padding:4px 0">Aún no hay copias. Se hará la primera la próxima vez que abras la app.</p>';
+}
 function vAjustes() {
   const s = S.datos(); const aj = s.ajustes;
   const horasCampo = (t, l) => `<div class="fila"><label for="h-${t}" style="font-size:15px">${l}</label><span style="display:flex;align-items:center;gap:6px"><input type="number" id="h-${t}" name="h_${t}" min="0" step="0.5" value="${esc(aj.horas[t])}" style="width:80px;text-align:center;min-height:40px">h</span></div>`;
@@ -1110,10 +1172,15 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Copia de seguridad</span><span class="item-sub">Descarga o restaura todos tus registros</span></span><span style="display:flex"><button class="btn texto" data-act="copia">Descargar</button><label class="btn texto" for="in-copia" style="cursor:pointer">Restaurar</label><input type="file" id="in-copia" accept=".json,application/json" class="oculto"></span></div>
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
+    </div><div class="bloque">
+    <h2 class="etiqueta-grupo">Copias automáticas</h2>
+    <div class="tarjeta lista" id="lista-copias"><p class="mini suave">Cargando…</p></div>
+    <p class="mini suave" style="line-height:1.45;margin-top:-4px">La app guarda sola tus últimas 5 versiones en este dispositivo: al abrirla y antes de juntar tus datos con Drive. Si algo sale mal, puedes volver a una de ellas.</p>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.6.2</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.7.0</p>
     </div>`,
     mount(r) {
+      pintarCopias(r);
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
         S.actualizar((st) => {
@@ -1577,7 +1644,17 @@ const vNoEncontrado = () => ({ html: `<div class="pantalla sin-nav">${volver('#/
 
 // ======================= Acciones (clics) =======================
 const acciones = {
-  conectar: (b) => conCarga(b, async () => { await conectarYSincronizar(); toast('Conectado con Google.'); render(); }),
+  conectar: (b) => conCarga(b, async () => { await conectarYSincronizar(); toast('Sincronizado con tu Drive.'); render(); }),
+  'sync-reintentar': () => subir(),
+  'copia-volver': async (b) => {
+    const lista = (await idbGet('copias')) || []; const c = lista[Number(b.dataset.i)]; if (!c) return;
+    confirmar('¿Volver a esta copia?', `Tus datos quedarán como estaban el ${new Date(c.fecha).toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' })}. Antes se guarda una copia de cómo están ahora, por si quieres deshacerlo.`, 'Volver a esta copia', async () => {
+      await guardarCopia('Antes de volver a una copia');
+      S.reemplazar(c.datos, { sincronizar: true });
+      if (G.conectado()) await G.escribirDatos(S.datos()).then(() => { marcarPendiente(false); LS.set('ll-ultima', Date.now()); }).catch(() => {});
+      toast('Datos restaurados.'); render();
+    });
+  },
   desconectar: () => { G.desconectar(); toast('Desconectado de Google.'); render(); },
   notas: (b) => abrirNotas(b, b.dataset.id),
   'no-asistir': (b) => modalNoAsistir(b.dataset.id),
@@ -1969,7 +2046,7 @@ function seccionDe(ruta) {
 }
 function lateral(sec) {
   const enlace = (r, t, i) => `<a href="#/${r}" class="lat-enlace ${r === sec ? 'activo' : ''}" ${r === sec ? 'aria-current="page"' : ''}>${icon(i, 20)}<span>${t}</span></a>`;
-  const estado = !G.configurado() ? `<span class="lat-estado">${icon('candado', 14)}Modo prueba · solo este dispositivo</span>`
+  const estado = barraEstado() || !G.configurado() ? (barraEstado() || `<span class="lat-estado">${icon('candado', 14)}Modo prueba · solo este dispositivo</span>`)
     : G.conectado() ? `<span class="lat-estado ok"><i></i>Conectado a tu Drive</span>`
     : `<button class="btn pequeno" data-act="conectar" style="width:100%">${hayPendiente() ? 'Guardar cambios en Drive' : 'Conectar con Google'}</button>`;
   return `<aside class="lateral" aria-label="Menú">
@@ -1996,7 +2073,7 @@ function render() {
     if (m) {
       if (!ESCRITORIO.matches) {
         const v = fn(...m.slice(1), params);
-        app.innerHTML = v.html; v.mount?.(app); app.classList.remove('es-escritorio');
+        app.innerHTML = (barraEstado() || '<span class="estado-vacio"></span>') + v.html; v.mount?.(app); app.classList.remove('es-escritorio');
         return;
       }
       const sec = seccionDe(ruta);
@@ -2025,6 +2102,7 @@ function render() {
 }
 window.addEventListener('hashchange', () => { cerrarModal(); render(); window.scrollTo(0, 0); });
 render();
+guardarCopia('Al abrir la app', 6 * 3600e3);
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
