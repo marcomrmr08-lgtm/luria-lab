@@ -151,6 +151,10 @@ export async function copiar(id, nombre, padre) {
 export async function renombrar(id, nombre) {
   await json(`${DRIVE}/files/${id}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre }) });
 }
+// Texto de un Google Doc creado o subido por la app (solo cuando la persona lo pide)
+export async function textoDoc(id) {
+  return (await api(`${DRIVE}/files/${id}/export?mimeType=text/plain`)).text();
+}
 export async function descargarArchivo(id) {
   return (await api(`${DRIVE}/files/${id}?alt=media`)).arrayBuffer();
 }

@@ -83,6 +83,7 @@ function completar(s) {
   s.hexaflex.procesos = {};
   for (const f of s.hexaflex.fichas) { f.audios = f.audios || []; f.videos = f.videos || []; f.exp = f.exp || {}; f.notasExp = f.notasExp || []; }
   if (!Array.isArray(s.biblio)) s.biblio = BIBLIO_BASE.map((b) => ({ ...b }));
+  if (!Array.isArray(s.guia)) s.guia = [];
   if (!s.pdp) s.pdp = { fuertes: '', mejora: '', objetivos: [], revisiones: {} };
   if (!Array.isArray(s.pdp.objetivos)) s.pdp.objetivos = [];
   s.pdp.revisiones = s.pdp.revisiones || {};
@@ -131,7 +132,7 @@ export function reemplazar(nuevo, { sincronizar = false } = {}) {
 export function siempreAlGuardar(fn) { alGuardar = fn; }
 
 // Junta dos copias (este dispositivo y Drive) sin perder nada de ninguna
-const intacta = (a) => a.precargada && a.estado === 'programada' && !a.notasDocId
+const intacta = (a) => a.precargada && a.estado === 'programada' && !a.notasDocId && !a.notasArchivoId && !a.ideaClave && !a.guiaId
   && !Object.values(a.ficha || {}).some(Boolean) && !a.tarea?.docId && !a.tarea?.texto;
 const ajustesVacios = (aj) => !aj?.nombre && !aj?.plantillaHorasNombre && !aj?.plantillaDiarioId;
 export function fusionar(local, remoto) {
@@ -164,11 +165,13 @@ export function fusionar(local, remoto) {
   const notas = { ...R.hexaflex.notas }; for (const [k, v] of Object.entries(L.hexaflex.notas || {})) if (v && (localMasNuevo || !notas[k])) notas[k] = v;
   const biblio = new Map(R.biblio.filter((b) => !borrados.has(b.id)).map((b) => [b.id, b]));
   for (const b of L.biblio) if (!borrados.has(b.id) && (localMasNuevo || !biblio.has(b.id))) biblio.set(b.id, b);
+  const guia = new Map(R.guia.filter((g) => !borrados.has(g.id)).map((g) => [g.id, g]));
+  for (const g of L.guia) if (!borrados.has(g.id) && (localMasNuevo || !guia.has(g.id))) guia.set(g.id, g);
   const hexaflex = { ...R.hexaflex, ...L.hexaflex, notas, modelo: elegir(L.hexaflex.modelo, R.hexaflex.modelo), procesos: { ...R.hexaflex.procesos, ...Object.fromEntries(Object.entries(L.hexaflex.procesos).filter(([k, v]) => conTexto(v) && (localMasNuevo || !conTexto(R.hexaflex.procesos[k])))) }, fichas: [...fichas.values()] };
   const pdp = elegir(L.pdp, R.pdp);
   return {
     ...R, ...L,
-    hexaflex, pdp, biblio: [...biblio.values()],
+    hexaflex, pdp, biblio: [...biblio.values()], guia: [...guia.values()],
     updatedAt: Date.now(),
     ajustes, informes,
     actividades: [...porId.values()],

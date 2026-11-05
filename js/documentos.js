@@ -31,7 +31,7 @@ ${filas.map((f) => `<tr><td ${td}>${f.n}</td><td ${td}>${esc(f.fecha)}</td><td $
 }
 
 export function documentoNotas(titulo, fecha) {
-  return `<html><body style="${estilo}"><h1>Notas · ${esc(titulo)}</h1><p>${esc(fmtFecha(fecha))}</p><p></p></body></html>`;
+  return `<html><body style="${estilo}"><p><b>Apuntes · ${esc(titulo)}</b><br>${esc(fmtFecha(fecha))}</p><p></p></body></html>`;
 }
 
 export function documentoTarea(titulo, fecha, enunciado) {

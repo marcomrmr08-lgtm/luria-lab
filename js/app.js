@@ -148,7 +148,7 @@ const nav = (activo) => {
     `<a href="#/${r}" class="${r === activo ? 'activo' : ''}" ${r === activo ? 'aria-current="page"' : ''}>${icon(i, 24)}${t}</a>`).join('')}</div></nav>`;
 };
 const fab = (compacto) => `<a href="#/nueva" class="fab" ${compacto ? 'aria-label="Nueva entrada" style="width:56px;padding:0;justify-content:center"' : ''}>${icon('mas', 22)}${compacto ? '' : 'Nueva entrada'}</a>`;
-const volver = (href, texto) => `<header class="cabecera" ${['#/inicio', '#/diario', '#/hexaflex'].includes(href) ? 'data-raiz' : ''}><div class="cabecera-izq"><a href="${href}" class="volver" aria-label="Volver">${icon('atras', 24)}</a><span class="titulo-m">${esc(texto)}</span></div></header>`;
+const volver = (href, texto) => `<header class="cabecera" ${['#/inicio', '#/diario', '#/hexaflex', '#/guia'].includes(href) ? 'data-raiz' : ''}><div class="cabecera-izq"><a href="${href}" class="volver" aria-label="Volver">${icon('atras', 24)}</a><span class="titulo-m">${esc(texto)}</span></div></header>`;
 const opcionesTerapeuta = (sel) => `<option value="">Sin indicar</option>${S.datos().terapeutas.map((t) => `<option value="${esc(t.id)}" ${t.id === sel ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('')}<option value="__nuevo">+ Añadir terapeuta…</option>`;
 const seg = (nombre, opciones, valor) => `<div class="segmentado" role="radiogroup">${opciones.map(([v, t]) => {
   const id = `${nombre}-${v}`; return `<input type="radio" id="${id}" name="${nombre}" value="${v}" ${v === valor ? 'checked' : ''}><label for="${id}">${t}</label>`;
@@ -225,10 +225,12 @@ async function abrirNotas(boton, id) {
   await conCarga(boton, async () => {
     await google();
     const act = S.actividad(id);
-    const dir = await G.carpeta([RAIZ, 'Notas'], S.datos().ajustes.carpetas);
-    const doc = await G.docDesdeHtml(`Notas · ${titulo(act)} · ${fmtNum(act.fecha)}`, D.documentoNotas(titulo(act), act.fecha), dir);
-    S.actualizar(() => { act.notasDocId = doc; });
-    toast('Documento de notas creado.', { enlace: G.enlaceDoc(doc), texto: 'Abrir notas', ms: 12000 });
+    const f = app.querySelector('#f-ficha, #f-tc'); if (f) guardarSinSalir(act, f);
+    const dir = await G.carpeta([RAIZ, 'Apuntes'], S.datos().ajustes.carpetas);
+    const nombre = `Apuntes · ${titulo(act)} · ${fmtNum(act.fecha).replaceAll('/', '-')}`;
+    const doc = await G.docDesdeHtml(nombre, D.documentoNotas(titulo(act), act.fecha), dir);
+    S.actualizar(() => { act.notasDocId = doc; act.notasNombre = nombre; });
+    toast('Documento de apuntes creado en tu Drive.', { enlace: G.enlaceDoc(doc), texto: 'Abrir', ms: 12000 });
     render();
   });
 }
@@ -673,14 +675,13 @@ function vTC(id) {
   return {
     html: `<div class="pantalla sin-nav">${volver(nuevo ? '#/nueva' : '#/inicio', 'Tutoría de caso')}
     <form id="f-tc" class="seccion">
-      ${!nuevo ? `<button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 18)}${a.notasDocId ? 'Ver notas de la tutoría' : 'Abrir notas de la tutoría'}</button>` : ''}
       <div class="dos-col">
         <div class="campo"><label for="fecha">Fecha</label><input type="date" id="fecha" name="fecha" required value="${esc(a.fecha)}"></div>
         <div class="campo"><label for="hora">Hora</label><input type="time" id="hora" name="hora" value="${esc(a.hora)}"></div>
       </div>
       <div class="campo"><label for="ter">Terapeuta que presenta</label><select id="ter" name="terapeutaId" data-terapeuta>${opcionesTerapeuta(a.terapeutaId)}</select></div>
-      <div class="tarjeta"><label for="apr" class="pregunta">¿Qué es lo más importante que he aprendido hoy?</label>
-        <textarea id="apr" name="aprendizaje" rows="6" placeholder="Una idea, una pregunta que haría, algo que quiero practicar…" style="border:0;padding:0;min-height:120px">${esc(a.aprendizaje)}</textarea></div>
+      ${nuevo ? `<div class="campo"><label for="idea-clave">Idea clave <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="idea-clave" name="ideaClave" maxlength="200" value="${esc(a.ideaClave || '')}" placeholder="Lo esencial, en una línea"></div>
+      <p class="ayuda" style="margin-top:-6px">Al guardar podrás crear o subir tus apuntes.</p>` : bloqueApuntes(a)}
       <div class="campo"><span class="etiqueta">Tema <span class="suave" style="font-weight:400">(opcional)</span></span>
         <div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="tema-${i}" name="temas" value="${esc(t)}" ${(a.temas || []).includes(t) ? 'checked' : ''}><label for="tema-${i}">${esc(t)}</label>`).join('')}</div></div>
       <button class="btn primario grande">Guardar</button>
@@ -690,12 +691,13 @@ function vTC(id) {
     mount(r) {
       montarSelectorTerapeuta(r);
       const f = r.querySelector('#f-tc');
+      montarApuntes(r, a, () => guardarSinSalir(a, f));
       f.addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(f);
-        Object.assign(a, { fecha: v.fecha, hora: v.hora, terapeutaId: v.terapeutaId && v.terapeutaId !== '__nuevo' ? v.terapeutaId : null, aprendizaje: (v.aprendizaje || '').trim(), temas: [].concat(v.temas || []) });
+        Object.assign(a, { fecha: v.fecha, hora: v.hora, terapeutaId: v.terapeutaId && v.terapeutaId !== '__nuevo' ? v.terapeutaId : null, ideaClave: (v.ideaClave || '').trim(), temas: [].concat(v.temas || []) });
         a.estado = a.fecha > hoyISO() ? 'programada' : 'hecha';
         S.actualizar((s) => { if (nuevo) { s.actividades.push(a); delete borradores.tc; } });
-        toast('Guardado.'); irA(a.estado === 'hecha' ? '#/diario' : '#/agenda');
+        toast('Guardado.'); irA(nuevo ? `#/tc/${a.id}` : a.estado === 'hecha' ? '#/diario' : '#/agenda');
       });
       r.querySelector('#b-borrar')?.addEventListener('click', () => confirmar('¿Eliminar esta tutoría de caso?', 'Se borra de la app.', 'Eliminar', () => {
         S.borrar([a.id]); irA('#/inicio');
@@ -709,22 +711,17 @@ function vFicha(id) {
   const a = S.actividad(id);
   if (!a) return vNoEncontrado();
   const tm = a.tipo === 'tutoria_metodologica';
-  const f = a.ficha || {}; const t = a.tarea || {};
+  const t = a.tarea || {};
   const asistencia = a.estado === 'programada' ? (a.fecha <= hoyISO() ? 'hecha' : 'programada') : a.estado;
-  const campo = (n, l, ph, filas = 3) => `<section class="tarjeta"><label for="${n}" class="tipo c-${color(a)}" style="font-size:13px">${l}</label><textarea id="${n}" name="${n}" rows="${filas}" placeholder="${ph}" style="border:0;padding:0">${esc(f[n])}</textarea></section>`;
   return {
     html: `<div class="pantalla sin-nav">${volver('#/inicio', tm ? 'Tutoría metodológica' : 'Seminario')}
     <div class="item-texto"><span class="pequeno c-${color(a)}" style="font-weight:700">${tm ? 'Tutoría metodológica' : 'Seminario'} ${a.numero} · ${esc(fmtCorta(a.fecha))} · ${S.horasDe(a)} h</span>
       <h1 class="titulo">${esc(a.titulo)}</h1>
       ${tm && REVISIONES_PDP.includes(a.numero) ? '<span class="insignias"><span class="insignia">Revisión de tu PDP</span></span>' : ''}
       ${!tm ? '<span class="pequeno suave">Incluye taller experiencial</span>' : ''}</div>
-    <button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 18)}${a.notasDocId ? 'Ver notas de la sesión' : 'Abrir notas de la sesión'}</button>
     <form id="f-ficha" class="seccion">
       <div class="campo"><span class="etiqueta">Asistencia</span>${seg('estado', [['hecha', 'Asistí'], ['cancelada', 'No asistí'], ['programada', 'Pendiente']], asistencia)}</div>
-      ${campo('idea', 'Idea clave', 'Lo esencial de la sesión, en dos o tres líneas')}
-      ${campo('guia', 'Guía o esquema', 'Los pasos o el esquema que os dieron', 5)}
-      ${campo('aplica', 'Cómo lo aplico', 'Qué haré distinto en la próxima sesión o role play')}
-      ${campo('dudas', 'Dudas para preguntar', 'Toca para añadir', 2)}
+      ${bloqueApuntes(a)}
       ${tm ? `<section class="tarjeta"><div class="fila-entre"><span class="tipo c-morado" style="font-size:13px">Tarea de la tutoría</span>${t.enviada ? '<span class="insignia ok">Enviada</span>' : t.docId ? '<span class="insignia aviso">Sin enviar</span>' : ''}</div>
         <textarea name="tareaTexto" rows="2" placeholder="Qué pidió el profesor y para cuándo" style="border:0;padding:0">${esc(t.texto)}</textarea>
         <div class="botones">${t.docId ? `<a class="btn" href="${G.enlaceDoc(t.docId)}" target="_blank" rel="noopener" style="grid-column:span 2">${icon('externo', 16)}Abrir Doc de la tarea</a>` : `<button type="button" class="btn" id="b-crear-tarea" style="grid-column:span 2">${icon('doc', 16)}Crear Doc de la tarea</button>`}</div>
@@ -733,14 +730,15 @@ function vFicha(id) {
     </form></div>`,
     mount(r) {
       const form = r.querySelector('#f-ficha');
+      montarApuntes(r, a, () => guardarSinSalir(a, form));
       const guardarFicha = () => {
         const v = leerForm(form);
         S.actualizar(() => {
-          a.estado = v.estado; a.ficha = { idea: v.idea.trim(), guia: v.guia.trim(), aplica: v.aplica.trim(), dudas: v.dudas.trim() };
+          a.estado = v.estado; a.ideaClave = (v.ideaClave || '').trim();
           if (tm) a.tarea = { ...(a.tarea || {}), texto: (v.tareaTexto || '').trim(), enviada: Boolean(v.tareaEnviada) };
         });
       };
-      form.addEventListener('submit', (e) => { e.preventDefault(); guardarFicha(); toast('Ficha guardada.'); irA('#/inicio'); });
+      form.addEventListener('submit', (e) => { e.preventDefault(); guardarFicha(); toast('Guardado.'); irA('#/inicio'); });
       r.querySelector('#b-crear-tarea')?.addEventListener('click', (e) => conCarga(e.currentTarget, async () => {
         guardarFicha(); await google();
         const dir = await G.carpeta([RAIZ, 'Tareas'], S.datos().ajustes.carpetas);
@@ -785,7 +783,7 @@ function vPractica(id) {
 // ---------- Diario ----------
 let filtroDiario = { q: '', tipo: 'todo', archivadas: false };
 // Entradas anteriores a la app que no tienen nada escrito
-const sinContenido = (a) => a.pasada && !a.docId && !a.aprendizaje && !a.notasCaliente && !a.feedback?.length && !Object.values(a.ficha || {}).some(Boolean);
+const sinContenido = (a) => a.pasada && !a.docId && !a.notasDocId && !a.notasArchivoId && !a.ideaClave && !a.aprendizaje && !a.notasCaliente && !a.feedback?.length && !Object.values(a.ficha || {}).some(Boolean);
 
 function archivar(ids, valor) {
   S.actualizar((s) => { for (const a of s.actividades) if (ids.includes(a.id)) a.archivada = valor; });
@@ -833,7 +831,7 @@ function vDiario() {
   const vacias = S.hechas().filter((a) => !a.archivada && sinContenido(a));
   const lista = S.hechas().filter((a) => Boolean(a.archivada) === verArch)
     .filter((a) => !grupos[filtroDiario.tipo] || grupos[filtroDiario.tipo].includes(a.tipo))
-    .filter((a) => !q || [titulo(a), a.caso, a.aprendizaje, a.notasCaliente, a.descripcion, ...(a.temas || []), ...Object.values(a.ficha || {})].join(' ').toLowerCase().includes(q))
+    .filter((a) => !q || [titulo(a), a.caso, a.ideaClave, a.aprendizaje, a.notasCaliente, a.descripcion, ...(a.temas || []), ...Object.values(a.ficha || {})].join(' ').toLowerCase().includes(q))
     .sort((x, y) => porFechaHora(y, x));
   let html = ''; let mes = '';
   for (const a of lista) {
@@ -842,10 +840,10 @@ function vDiario() {
     let detalle = '';
     if (esSesion(a) && a.pasada && !a.docId) detalle = '<span class="insignias"><span class="insignia">Anterior a la app</span></span>';
     else if (esSesion(a)) detalle = `<span class="insignias">${!a.docId ? '<span class="insignia aviso">Sin diario crítico</span>' : a.enviado ? '<span class="insignia ok">Enviado</span>' : a.noEnviar ? '<span class="insignia">No se envía</span>' : '<span class="insignia aviso">Sin enviar al terapeuta</span>'}${a.feedback?.length ? '<span class="insignia ok">Feedback recibido</span>' : ''}</span>`;
-    else if (a.tipo === 'tutoria_caso') detalle = `<span class="texto-largo" style="font-size:14px;color:#2A332E">${a.aprendizaje ? '«' + esc(a.aprendizaje.slice(0, 160)) + (a.aprendizaje.length > 160 ? '…' : '') + '»' : '<span class="suave">Sin aprendizaje anotado</span>'}</span>${a.temas?.length ? `<span class="insignias">${a.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}`;
+    else if (a.tipo === 'tutoria_caso') detalle = `<span class="texto-largo" style="font-size:14px;color:#2A332E">${(a.ideaClave || a.aprendizaje) ? '«' + esc((a.ideaClave || a.aprendizaje).slice(0, 160)) + ((a.ideaClave || a.aprendizaje).length > 160 ? '…' : '') + '»' : `<span class="suave">${a.notasDocId || a.notasArchivoId ? 'Con apuntes' : 'Sin apuntes'}</span>`}</span>${a.temas?.length ? `<span class="insignias">${a.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}`;
     else if (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') {
-      const n = ['idea', 'guia', 'aplica', 'dudas'].filter((k) => a.ficha?.[k]).length;
-      detalle = `<span class="insignias"><span class="insignia">Ficha · ${n} de 4 apartados</span>${a.tipo === 'tutoria_metodologica' && a.tarea?.docId && !a.tarea?.enviada ? '<span class="insignia aviso">Tarea sin enviar</span>' : ''}</span>`;
+      const idea = ideaDe(a);
+      detalle = `${idea ? `<span class="texto-largo" style="font-size:14px;color:#2A332E">«${esc(idea)}»</span>` : ''}<span class="insignias"><span class="insignia">${a.notasDocId || a.notasArchivoId ? 'Con apuntes' : 'Sin apuntes'}</span>${a.guiaId ? '<span class="insignia ok">En la Guía</span>' : ''}${a.tipo === 'tutoria_metodologica' && a.tarea?.docId && !a.tarea?.enviada ? '<span class="insignia aviso">Tarea sin enviar</span>' : ''}</span>`;
     } else detalle = a.descripcion ? `<span class="item-sub">${esc(a.descripcion.slice(0, 120))}</span>` : '';
     const etiqueta = esSesion(a) ? `${nombreTipo(a)} · ${casoApp(a)}` : (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') ? `${nombreTipo(a)}${a.numero ? ' ' + a.numero : ''}` : nombreTipo(a);
     html += `<div class="deslizable" data-id="${esc(a.id)}"><span class="fondo-archivar" aria-hidden="true">${icon(verArch ? 'diario' : 'papelera', 20)}${verArch ? 'Recuperar' : 'Archivar'}</span>
@@ -995,9 +993,9 @@ async function generarMensual(mes) {
   const ter = (a) => S.terapeuta(a.terapeutaId)?.nombre;
   const html = D.diarioMensual({
     mes, nombre: s.ajustes.nombre, sesiones,
-    tutoriasCaso: delMes.filter((a) => a.tipo === 'tutoria_caso').map((a) => ({ fecha: a.fecha, terapeuta: ter(a), aprendizaje: a.aprendizaje })),
-    metodologicas: delMes.filter((a) => a.tipo === 'tutoria_metodologica').map((a) => ({ titulo: `${a.numero} · ${a.titulo}`, idea: a.ficha?.idea, aplica: a.ficha?.aplica })),
-    seminarios: delMes.filter((a) => a.tipo === 'seminario').map((a) => ({ titulo: `${a.numero} · ${a.titulo}`, idea: a.ficha?.idea, aplica: a.ficha?.aplica })),
+    tutoriasCaso: delMes.filter((a) => a.tipo === 'tutoria_caso').map((a) => ({ fecha: a.fecha, terapeuta: ter(a), aprendizaje: a.ideaClave || a.aprendizaje })),
+    metodologicas: delMes.filter((a) => a.tipo === 'tutoria_metodologica').map((a) => ({ titulo: `${a.numero} · ${a.titulo}`, idea: ideaDe(a), aplica: a.ficha?.aplica })),
+    seminarios: delMes.filter((a) => a.tipo === 'seminario').map((a) => ({ titulo: `${a.numero} · ${a.titulo}`, idea: ideaDe(a), aplica: a.ficha?.aplica })),
     practicas: delMes.filter((a) => a.tipo === 'practica_pdp').map((a) => ({ fecha: a.fecha, titulo: a.titulo, descripcion: a.descripcion })),
   });
   const dir = await G.carpeta([RAIZ, 'Diario mensual'], s.ajustes.carpetas);
@@ -1129,7 +1127,7 @@ function vAjustes() {
       <div class="fila"><span class="item-texto"><span style="font-size:15px">Cerrar sesión en este dispositivo</span><span class="item-sub">Borra los datos guardados aquí. Lo sincronizado en tu Drive no se toca.</span></span><button class="btn texto" style="color:var(--error)" data-act="borrar-local">Cerrar</button></div>
     </div>
     </div></div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.5.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.6.0</p>
     </div>`,
     mount(r) {
       r.querySelector('#f-aj').addEventListener('submit', (e) => {
@@ -1689,6 +1687,239 @@ const acciones = {
     location.hash = '#/inicio'; location.reload();
   }),
 };
+// ---------- Apuntes (tutorías metodológicas, seminarios y tutorías de caso) ----------
+const conIA = (a) => a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario';
+const notasAnteriores = (a) => [a.aprendizaje, a.ficha?.guia && `Guía o esquema: ${a.ficha.guia}`, a.ficha?.aplica && `Cómo lo aplico: ${a.ficha.aplica}`, a.ficha?.dudas && `Dudas: ${a.ficha.dudas}`].filter(Boolean).join('\n\n');
+const ideaDe = (a) => a.ideaClave ?? a.ficha?.idea ?? '';
+function bloqueApuntes(a) {
+  const doc = a.notasDocId ? { url: G.enlaceDoc(a.notasDocId), nombre: a.notasNombre || 'Documento de apuntes' }
+    : a.notasArchivoId ? { url: G.enlaceArchivo(a.notasArchivoId), nombre: a.notasNombre || 'Archivo de apuntes' } : null;
+  const anteriores = notasAnteriores(a);
+  const entrada = a.guiaId && S.datos().guia.find((g) => g.id === a.guiaId);
+  return `<section class="tarjeta" style="gap:12px">
+    <span class="tipo c-${color(a)}" style="font-size:13px">Apuntes</span>
+    ${doc ? `<div class="apunte-doc">${icon('doc', 20)}<span class="item-texto"><a href="${esc(doc.url)}" target="_blank" rel="noopener" style="font-weight:700">${esc(doc.nombre)}</a><span class="mini suave">En tu Drive · carpeta Apuntes</span></span><button type="button" class="btn texto pequeno" data-act="apuntes-quitar" data-id="${esc(a.id)}">Quitar</button></div>
+      <a class="btn" href="${esc(doc.url)}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir apuntes</a>`
+    : `<div class="botones"><button type="button" class="btn" data-act="notas" data-id="${esc(a.id)}">${icon('doc', 16)}Crear doc</button><label class="btn" for="sub-apuntes" tabindex="0">${icon('subir', 16)}Subir</label></div>
+      <input type="file" id="sub-apuntes" accept=".docx,.doc,.odt,.txt,.md,.pdf,image/*" hidden>
+      <span class="mini suave" style="line-height:1.45">Escribe como quieras. Puedes crear un documento en blanco en tu Drive o subir uno tuyo (Word, PDF o una foto de tus apuntes).</span>`}
+    <div class="campo"><label for="idea-clave">Idea clave <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="idea-clave" name="ideaClave" maxlength="200" value="${esc(ideaDe(a))}" placeholder="Lo esencial, en una línea"></div>
+    ${conIA(a) ? (entrada ? `<a class="btn" href="#/guia/${esc(entrada.id)}">${icon('guia', 16)}Ver en tu Guía clínica</a>`
+      : `<button type="button" class="btn ${doc ? 'primario' : ''}" data-act="a-guia" data-id="${esc(a.id)}" ${doc ? '' : 'disabled'}>${icon('guia', 16)}Pasar a Guía clínica</button>${doc ? '' : '<span class="mini suave" style="margin-top:-6px">Primero crea o sube tus apuntes.</span>'}`) : ''}
+    ${anteriores ? `<details class="pequeno"><summary class="suave">Notas que escribiste en la versión anterior</summary><p class="texto-largo" style="margin-top:8px">${esc(anteriores)}</p></details>` : ''}
+  </section>`;
+}
+function montarApuntes(r, a, guardarAntes) {
+  r.querySelector('#sub-apuntes')?.addEventListener('change', (e) => {
+    const archivo = e.target.files?.[0]; if (!archivo) return;
+    const etiqueta = r.querySelector('label[for="sub-apuntes"]');
+    conCarga(etiqueta, async () => {
+      guardarAntes?.(); await google();
+      const dir = await G.carpeta([RAIZ, 'Apuntes'], S.datos().ajustes.carpetas);
+      const ext = (archivo.name.split('.').pop() || '').toLowerCase();
+      const nombre = `Apuntes · ${titulo(a)} · ${fmtNum(a.fecha).replaceAll('/', '-')}`;
+      // Word, OpenDocument y texto se convierten a Google Docs para poder pasarlos a la Guía
+      if (['docx', 'doc', 'odt', 'txt', 'md'].includes(ext)) {
+        const id = await G.subirArchivo(nombre, archivo, archivo.type || 'application/octet-stream', dir, 'application/vnd.google-apps.document');
+        S.actualizar(() => { a.notasDocId = id; a.notasNombre = nombre; delete a.notasArchivoId; });
+      } else {
+        const id = await G.subirGrande(`${nombre}.${ext}`, archivo, archivo.type || 'application/octet-stream', dir);
+        S.actualizar(() => { a.notasArchivoId = id; a.notasNombre = `${nombre}.${ext}`; a.notasMime = archivo.type; delete a.notasDocId; });
+      }
+      toast('Apuntes subidos a tu Drive.'); render();
+    });
+  });
+}
+
+// ---------- Guía clínica ----------
+const enlaceIA = 'https://claude.ai/new';
+function instruccionesIA(a, conTexto) {
+  return `Ayúdame a convertir mis apuntes de una sesión de formación de mis prácticas de psicología en una entrada de mi Guía clínica personal.
+
+Sesión: ${titulo(a)} (${fmtNum(a.fecha)})
+
+Instrucciones:
+- Usa solo lo que aparece en mis apuntes. No inventes datos, autores, referencias ni técnicas. Si algo está incompleto, márcalo como «(por completar)».
+- Si aparece cualquier dato que pueda identificar a un paciente, omítelo.
+- Escribe en español, claro y conciso, pensado para consultarlo antes de una sesión.
+- Omite las secciones para las que no haya información.
+- Devuelve solo el resultado, en Markdown, con esta estructura:
+
+# Título breve del tema
+Temas: uno o varios de: ${TEMAS.join(', ')}
+## Idea clave
+## Conceptos principales
+## Cómo aplicarlo en sesión
+(pasos, preguntas o frases útiles)
+## Cuándo usarlo y precauciones
+## Dudas para profundizar
+## Fuente
+${titulo(a)}, ${fmtNum(a.fecha)}
+
+${conTexto ? 'MIS APUNTES:' : 'Mis apuntes van en el archivo adjunto.'}`;
+}
+// Separa la línea «Temas:» del texto que devuelve la IA
+function leerRespuestaIA(txt) {
+  let temas = [];
+  const limpio = txt.replace(/\r/g, '').replace(/^\s*```(?:markdown)?\s*\n|\n```\s*$/g, '').split('\n').filter((l) => {
+    const m = l.match(/^\s*\**temas\**\s*:\s*(.+)$/i);
+    if (m) { temas = m[1].split(/[,;·]/).map((t) => t.replace(/[*_]/g, '').trim()).filter(Boolean); return false; }
+    return true;
+  }).join('\n').trim();
+  const t = limpio.match(/^#\s+(.+)$/m);
+  const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  temas = temas.map((x) => TEMAS.find((T) => norm(T) === norm(x)) || x);
+  return { titulo: t ? t[1].trim() : '', temas, contenido: limpio.replace(/^#\s+.+\n?/m, '').trim() };
+}
+function modalPasarGuia(a) {
+  const archivo = !a.notasDocId;
+  abrirModal(`<h2>Pasar a Guía clínica</h2>
+    <p class="pequeno suave" style="line-height:1.5">${icon('candado', 12)} Antes de seguir, revisa que tus apuntes no tengan nombres, iniciales ni datos que identifiquen a pacientes.</p>
+    <ol class="pasos-ia">
+      <li><b>Copia</b> ${archivo ? 'las instrucciones' : 'tus apuntes junto con las instrucciones'}.
+        <button type="button" class="btn" id="ia-copiar" ${archivo ? '' : 'disabled'}>${archivo ? `${icon('copiar', 16)}Copiar instrucciones` : '<span class="spinner" aria-hidden="true"></span> Leyendo tus apuntes…'}</button></li>
+      <li><b>Pégalo</b> en Claude o en otro chat de IA${archivo ? ` y adjunta tu archivo (<a href="${esc(G.enlaceArchivo(a.notasArchivoId))}" target="_blank" rel="noopener">descárgalo de Drive</a>)` : ''}.
+        <a class="btn" href="${enlaceIA}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir Claude</a></li>
+      <li><b>Pega aquí</b> la respuesta:
+        <textarea id="ia-resp" rows="8" placeholder="# Título del tema&#10;Temas: …&#10;## Idea clave&#10;…"></textarea></li>
+    </ol>
+    <div class="botones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ia-guardar">Guardar en la Guía</button></div>`, async (d) => {
+    let texto = instruccionesIA(a, false);
+    const bCopiar = d.querySelector('#ia-copiar');
+    const copiar = async () => {
+      try { await navigator.clipboard.writeText(texto); toast('Copiado. Pégalo en el chat de IA.'); bCopiar.innerHTML = `${icon('check', 16)}Copiado`; }
+      catch { abrirModalTexto(texto); }
+    };
+    bCopiar.addEventListener('click', copiar);
+    d.querySelector('#ia-guardar').addEventListener('click', () => {
+      const resp = d.querySelector('#ia-resp').value.trim();
+      if (resp.length < 20) { toast('Pega primero la respuesta de la IA.', { error: true }); return; }
+      const r = leerRespuestaIA(resp);
+      const entrada = { id: S.nuevoId(), titulo: r.titulo || a.titulo || titulo(a), temas: r.temas, contenido: r.contenido, actividadId: a.id, fuente: `${titulo(a)} · ${fmtNum(a.fecha)}`, fecha: a.fecha, creada: hoyISO() };
+      S.actualizar((s) => { s.guia.push(entrada); a.guiaId = entrada.id; });
+      cerrarModal(); toast('Añadido a tu Guía clínica.'); irA(`#/guia/${entrada.id}`);
+    });
+    if (!archivo) {
+      try {
+        await google();
+        const apuntes = (await G.textoDoc(a.notasDocId)).replace(/^﻿/, '').trim();
+        if (!d.isConnected || !d.open) return;
+        if (apuntes.length < 30) { bCopiar.innerHTML = 'Tus apuntes están casi vacíos'; toast('Escribe tus apuntes en el documento antes de pasarlos a la Guía.', { error: true }); return; }
+        texto = `${instruccionesIA(a, true)}\n\n${apuntes}`;
+        bCopiar.disabled = false; bCopiar.innerHTML = `${icon('copiar', 16)}Copiar apuntes e instrucciones`;
+      } catch (e) { bCopiar.innerHTML = 'No se pudieron leer'; toast(e.message || 'No se pudieron leer tus apuntes.', { error: true }); }
+    }
+  });
+}
+// Si el navegador no deja copiar, se muestra el texto para copiarlo a mano
+function abrirModalTexto(texto) {
+  abrirModal(`<h2>Copia este texto</h2><p class="pequeno suave">Tu navegador no deja copiar automáticamente. Mantén pulsado el texto, selecciónalo todo y cópialo.</p><textarea rows="12" readonly style="font-size:13px">${esc(texto)}</textarea><div class="botones"><button class="btn primario" data-cerrar>Cerrar</button></div>`, (d) => { const t = d.querySelector('textarea'); t.focus(); t.select(); });
+}
+// Markdown sencillo → HTML (títulos, listas, negrita y cursiva)
+function md(txt) {
+  const linea = (l) => esc(l).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<i>$2</i>');
+  const out = []; let lista = null;
+  const cerrar = () => { if (lista) { out.push(`</${lista}>`); lista = null; } };
+  for (const l of (txt || '').split('\n')) {
+    let m;
+    if ((m = l.match(/^(#{1,4})\s+(.+)/))) { cerrar(); out.push(`<h${Math.min(m[1].length + 1, 4)}>${linea(m[2])}</h${Math.min(m[1].length + 1, 4)}>`); }
+    else if ((m = l.match(/^\s*[-*•]\s+(.+)/))) { if (lista !== 'ul') { cerrar(); out.push('<ul>'); lista = 'ul'; } out.push(`<li>${linea(m[1])}</li>`); }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.+)/))) { if (lista !== 'ol') { cerrar(); out.push('<ol>'); lista = 'ol'; } out.push(`<li>${linea(m[1])}</li>`); }
+    else if (!l.trim()) cerrar();
+    else { cerrar(); out.push(`<p>${linea(l)}</p>`); }
+  }
+  cerrar();
+  return out.join('');
+}
+function vGuia(params) {
+  const g = S.datos().guia;
+  const tema = params?.get('tema') || '';
+  const q = (params?.get('q') || '').toLowerCase();
+  const temas = [...new Set([...TEMAS.filter((t) => g.some((e) => e.temas?.includes(t))), ...g.flatMap((e) => e.temas || [])])];
+  const lista = g.filter((e) => (!tema || e.temas?.includes(tema)) && (!q || [e.titulo, e.contenido, ...(e.temas || [])].join(' ').toLowerCase().includes(q)))
+    .sort((x, y) => (y.fecha || '').localeCompare(x.fecha || ''));
+  const enlace = (t) => `#/guia${t ? `?tema=${encodeURIComponent(t)}` : ''}`;
+  return {
+    html: `<div class="pantalla"><h1 class="titulo">Guía clínica</h1>
+    ${g.length ? `<input type="search" id="buscar-guia" placeholder="Buscar en tu guía" value="${esc(params?.get('q') || '')}" autocomplete="off">
+      <div class="chips"><a href="${enlace('')}" class="chip ${!tema ? 'oscuro' : ''}">Todo</a>${temas.map((t) => `<a href="${enlace(t)}" class="chip ${tema === t ? 'oscuro' : ''}">${esc(t)}</a>`).join('')}</div>
+      <div class="seccion">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="item"><span class="item-texto"><span class="item-titulo">${esc(e.titulo)}</span><span class="item-sub">${esc(e.fuente || '')}</span>${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}</span>${icon('sig', 18)}</a>`).join('') || '<p class="vacio">Nada coincide con la búsqueda.</p>'}</div>`
+    : `<div class="tarjeta" style="gap:10px"><p style="line-height:1.5">Aquí se irán reuniendo tus apuntes de las tutorías metodológicas y los seminarios, ordenados y listos para consultar.</p><p class="pequeno suave" style="line-height:1.5">Abre una tutoría o un seminario, crea o sube tus apuntes y pulsa «Pasar a Guía clínica».</p></div>`}
+    <button class="btn" data-act="guia-manual">${icon('mas', 16)}Añadir una entrada a mano</button>
+    </div>${nav('guia')}`,
+    mount(r) {
+      const b = r.querySelector('#buscar-guia');
+      b?.addEventListener('input', () => {
+        const p = new URLSearchParams(); if (tema) p.set('tema', tema); if (b.value) p.set('q', b.value);
+        history.replaceState(null, '', `#/guia${p.toString() ? '?' + p : ''}`); render();
+        const n = app.querySelector('#buscar-guia'); n.focus(); n.setSelectionRange(n.value.length, n.value.length);
+      });
+    },
+  };
+}
+function vGuiaEntrada(id) {
+  const e = S.datos().guia.find((x) => x.id === id);
+  if (!e) return vNoEncontrado();
+  const act = e.actividadId && S.actividad(e.actividadId);
+  return {
+    html: `<div class="pantalla sin-nav">${volver('#/guia', 'Guía clínica')}
+    <article class="guia-entrada">
+      <h1 class="titulo">${esc(e.titulo)}</h1>
+      <span class="pequeno suave">${act ? `<a href="${rutaVer(act)}">${esc(e.fuente)}</a>` : esc(e.fuente || '')}</span>
+      ${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<a class="insignia" href="#/guia?tema=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</span>` : ''}
+      <div class="md">${md(e.contenido)}</div>
+    </article>
+    <div class="botones"><button class="btn" data-act="guia-editar" data-id="${esc(e.id)}">${icon('editar', 16)}Editar</button><button class="btn" data-act="guia-copiar" data-id="${esc(e.id)}">${icon('copiar', 16)}Copiar</button></div>
+    <button class="btn texto peligro" data-act="guia-borrar" data-id="${esc(e.id)}">Eliminar de la guía</button>
+    </div>`,
+  };
+}
+function modalEntradaGuia(e) {
+  const nueva = !e;
+  abrirModal(`<h2>${nueva ? 'Nueva entrada' : 'Editar entrada'}</h2>
+    <form id="f-guia" class="seccion">
+      <div class="campo"><label for="g-titulo">Título</label><input id="g-titulo" name="titulo" required value="${esc(e?.titulo || '')}"></div>
+      <div class="campo"><span class="etiqueta">Temas</span><div class="chips">${TEMAS.map((t, i) => `<input type="checkbox" id="gt-${i}" name="temas" value="${esc(t)}" ${(e?.temas || []).includes(t) ? 'checked' : ''}><label for="gt-${i}">${esc(t)}</label>`).join('')}</div></div>
+      <div class="campo"><label for="g-cont">Contenido</label><textarea id="g-cont" name="contenido" rows="12" placeholder="Puedes usar ## para títulos y - para listas">${esc(e?.contenido || '')}</textarea></div>
+      ${nueva ? '<div class="campo"><label for="g-fuente">Fuente <span class="suave" style="font-weight:400">(opcional)</span></label><input id="g-fuente" name="fuente" placeholder="Libro, sesión, curso…"></div>' : ''}
+      <div class="botones"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div>
+    </form>`, (d) => {
+    d.querySelector('#f-guia').addEventListener('submit', (ev) => {
+      ev.preventDefault(); const v = leerForm(ev.target);
+      const otros = (e?.temas || []).filter((t) => !TEMAS.includes(t));
+      const datos = { titulo: v.titulo.trim(), temas: [...[].concat(v.temas || []), ...otros], contenido: (v.contenido || '').trim() };
+      let destino = e?.id;
+      S.actualizar((s) => {
+        if (e) Object.assign(e, datos);
+        else { destino = S.nuevoId(); s.guia.push({ id: destino, ...datos, fuente: (v.fuente || '').trim(), fecha: hoyISO(), creada: hoyISO() }); }
+      });
+      cerrarModal(); toast('Guardado.'); irA(`#/guia/${destino}`);
+    });
+  });
+}
+Object.assign(acciones, {
+  'a-guia': (b) => { const a = S.actividad(b.dataset.id); const f = app.querySelector('#f-ficha, #f-tc'); if (f) guardarSinSalir(a, f); modalPasarGuia(a); },
+  'apuntes-quitar': (b) => confirmar('¿Quitar los apuntes de esta actividad?', 'El documento sigue en tu Drive; solo deja de estar enlazado aquí.', 'Quitar', () => {
+    const a = S.actividad(b.dataset.id); S.actualizar(() => { delete a.notasDocId; delete a.notasArchivoId; delete a.notasNombre; delete a.notasMime; }); render();
+  }),
+  'guia-manual': () => modalEntradaGuia(null),
+  'guia-editar': (b) => modalEntradaGuia(S.datos().guia.find((x) => x.id === b.dataset.id)),
+  'guia-copiar': async (b) => {
+    const e = S.datos().guia.find((x) => x.id === b.dataset.id); const t = `# ${e.titulo}\n\n${e.contenido}`;
+    try { await navigator.clipboard.writeText(t); toast('Copiado.'); } catch { abrirModalTexto(t); }
+  },
+  'guia-borrar': (b) => confirmar('¿Eliminar esta entrada de la guía?', 'Tus apuntes originales no se tocan.', 'Eliminar', () => {
+    const id = b.dataset.id;
+    S.actualizar((s) => { for (const a of s.actividades) if (a.guiaId === id) delete a.guiaId; });
+    S.borrar([id]); S.actualizar((s) => { s.guia = s.guia.filter((x) => x.id !== id); }); irA('#/guia');
+  }),
+});
+// Guarda la idea clave escrita antes de abrir otra ventana
+function guardarSinSalir(a, f) {
+  const v = leerForm(f);
+  if (v.ideaClave !== undefined) S.actualizar(() => { a.ideaClave = v.ideaClave.trim(); });
+}
+
 Object.assign(acciones, {
   'lista-copiar': async (b) => {
     const t = textoListaCaso(b.dataset.caso);
@@ -1731,7 +1962,8 @@ const rutas = [
   [/^#\/hexaflex\/banco$/, () => vHxBanco()],
   [/^#\/biblio$/, () => vBiblio()],
   [/^#\/pdp$/, () => vPDP()],
-  [/^#\/(guia)$/, (s) => vProximamente(s)],
+  [/^#\/guia$/, (p) => vGuia(p)],
+  [/^#\/guia\/(.+)$/, (id) => vGuiaEntrada(decodeURIComponent(id))],
 ];
 // ---------- Formato de escritorio (desde 960 px de ancho) ----------
 const ESCRITORIO = window.matchMedia('(min-width: 960px)');
@@ -1766,6 +1998,7 @@ function lateral(sec) {
 function maestroDe(sec, ruta) {
   if (sec === 'diario' && ruta !== '#/diario' && !ruta.startsWith('#/diario')) return vDiario;
   if (sec === 'hexaflex') return vHexaflex;
+  if (sec === 'guia') return vGuia;
   return null;
 }
 const vacioDetalle = (txt) => ({ html: `<div class="pantalla detalle-vacio"><div class="tarjeta" style="align-items:center;text-align:center;padding:40px 24px">${icon('diario', 28)}<p class="suave">${txt}</p></div></div>` });
@@ -1785,6 +2018,7 @@ function render() {
       const antes = app.querySelector('.maestro'); const scrollMaestro = antes && antes.dataset.sec === sec ? antes.scrollTop : 0;
       let maestro = null; let detalle;
       if (ruta === '#/diario') { maestro = vDiario(); detalle = vacioDetalle('Elige una entrada de la lista para verla aquí.'); }
+      else if (ruta === '#/guia') { maestro = vGuia(params); detalle = vacioDetalle('Elige una entrada de tu guía para leerla aquí.'); }
       else if (ruta === '#/hexaflex') { maestro = vHexaflex(); detalle = vHxModelo(); }
       else { const mf = maestroDe(sec, ruta); if (mf) maestro = mf(); detalle = fn(...m.slice(1), params); }
       app.classList.add('es-escritorio');
