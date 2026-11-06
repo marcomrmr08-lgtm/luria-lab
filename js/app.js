@@ -1,5 +1,6 @@
 // Luria Lab · cuadernillo de prácticas
 import { CONFIG } from './config.js';
+import { COMPANEROS } from './edicion.js';
 import * as S from './store.js';
 import * as G from './google.js';
 import * as D from './documentos.js';
@@ -510,7 +511,7 @@ function pendientes() {
   }
   for (const a of S.hechas().filter((x) => esSesion(x) && !x.pasada && x.caso)) {
     if (!a.docId) lista.push({ ic: 'doc', c: 'ambar', t: 'Crear diario crítico', s: `${casoApp(a)} · ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
-    else if (!a.enviado && !a.noEnviar) lista.push({ ic: 'correo', c: 'ambar', t: 'Enviar diario crítico al terapeuta', s: `${casoApp(a)} · ${nombreTipo(a).toLowerCase()} del ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
+    else if (!COMPANEROS && !a.enviado && !a.noEnviar) lista.push({ ic: 'correo', c: 'ambar', t: 'Enviar diario crítico al terapeuta', s: `${casoApp(a)} · ${nombreTipo(a).toLowerCase()} del ${fmtCorta(a.fecha)}`, h: `#/caso/${encodeURIComponent(a.caso.trim())}` });
   }
   const d = new Date(); const dia = d.getDate();
   const mesPrev = hoyISO(new Date(d.getFullYear(), d.getMonth() - 1, 1)).slice(0, 7);
@@ -536,7 +537,7 @@ function vInicio() {
     html: `<div class="pantalla ancha">
     <header class="cabecera">
       <div><span class="solo-movil">${logoURL ? `<img src="${logoURL}" alt="Luria Lab" class="logo-centro">` : '<span class="marca">Luria Lab</span>'}</span><p class="suave" style="font-size:14px">${esc(fmtFecha(hoy))}</p><h1 class="titulo">Hola${primerNombre() ? ', ' + esc(primerNombre()) : ''}</h1></div>
-      <div class="solo-movil" style="display:flex;gap:8px"><a href="#/exportar" class="icono-btn" aria-label="Exportar y entregas">${icon('descargar')}</a><a href="#/ajustes" class="icono-btn" aria-label="Ajustes">${icon('ajustes')}</a></div>
+      <div class="solo-movil" style="display:flex;gap:8px">${COMPANEROS ? `<button class="icono-btn" data-act="guia-uso" aria-label="Guía de uso">${icon('ayuda')}</button>` : ''}<a href="#/exportar" class="icono-btn" aria-label="Exportar y entregas">${icon('descargar')}</a><a href="#/ajustes" class="icono-btn" aria-label="Ajustes">${icon('ajustes')}</a></div>
     </header>
     ${banda}${empezar}
     <div class="cols"><div class="col">
@@ -549,16 +550,16 @@ function vInicio() {
       <div class="fila-entre"><span class="pequeno suave" style="font-weight:600;font-size:14px">Horas de prácticas</span><a href="#/ajustes" class="pequeno" style="font-weight:600">Tu objetivo: ${obj} h · cambiar</a></div>
       <div style="display:flex;align-items:baseline;gap:6px"><span class="horas-num">${total}</span><span class="suave">h computables</span></div>
       <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="${obj}" aria-valuenow="${total}" aria-label="Progreso de horas"><div style="width:${Math.min(100, (total / obj) * 100).toFixed(1)}%"></div></div>
-      <div class="faltan">
+      ${COMPANEROS ? '' : `<div class="faltan">
         <span class="faltan-num">${plan.faltan}</span>
         <span class="item-texto"><span style="font-size:15px;font-weight:700">espejos o coterapias te faltan</span><span class="mini suave" style="line-height:1.4">para llegar a ${obj} h, contando las tutorías y seminarios previstos.${plan.planificadas ? ` Tienes ${plan.planificadas} en la agenda.` : ''}</span></span>
-      </div>
+      </div>`}
       <div class="rejilla">
         <div class="celda"><b>${c.espejo}</b><span class="mini suave">Espejos</span></div>
         <div class="celda"><b>${c.coterapia}</b><span class="mini suave">Coterapias</span></div>
       </div>
       <div class="rejilla tres">
-        <div class="celda"><b>${c.tutoria_caso} / ${s.ajustes.tcPrevistas}</b><span class="mini suave">Tutorías de caso</span></div>
+        <div class="celda"><b>${c.tutoria_caso}${COMPANEROS ? '' : ` / ${s.ajustes.tcPrevistas}`}</b><span class="mini suave">Tutorías de caso</span></div>
         <div class="celda"><b>${tmHechas} / ${plan.tm}</b><span class="mini suave">Tutorías metodológicas</span></div>
         <div class="celda"><b>${semHechas} / ${plan.sem}</b><span class="mini suave">Seminarios</span></div>
       </div>
@@ -879,7 +880,7 @@ function vDiario() {
     if (m !== mes) { mes = m; html += `<h2 class="etiqueta-grupo">${esc(nombreMes(m))}</h2>`; }
     let detalle = '';
     if (esSesion(a) && a.pasada && !a.docId) detalle = '<span class="insignias"><span class="insignia">Anterior a la app</span></span>';
-    else if (esSesion(a)) detalle = `<span class="insignias">${!a.docId ? '<span class="insignia aviso">Sin diario crítico</span>' : a.enviado ? '<span class="insignia ok">Enviado</span>' : a.noEnviar ? '<span class="insignia">No se envía</span>' : '<span class="insignia aviso">Sin enviar al terapeuta</span>'}${a.feedback?.length ? '<span class="insignia ok">Feedback recibido</span>' : ''}</span>`;
+    else if (esSesion(a)) detalle = `<span class="insignias">${!a.docId ? '<span class="insignia aviso">Sin diario crítico</span>' : COMPANEROS ? '<span class="insignia ok">Diario creado</span>' : a.enviado ? '<span class="insignia ok">Enviado</span>' : a.noEnviar ? '<span class="insignia">No se envía</span>' : '<span class="insignia aviso">Sin enviar al terapeuta</span>'}${a.feedback?.length ? '<span class="insignia ok">Feedback recibido</span>' : ''}</span>`;
     else if (a.tipo === 'tutoria_caso') detalle = `<span class="texto-largo" style="font-size:14px;color:#2A332E">${(a.ideaClave || a.aprendizaje) ? '«' + esc((a.ideaClave || a.aprendizaje).slice(0, 160)) + ((a.ideaClave || a.aprendizaje).length > 160 ? '…' : '') + '»' : `<span class="suave">${a.notasDocId || a.notasArchivoId ? 'Con apuntes' : 'Sin apuntes'}</span>`}</span>${a.temas?.length ? `<span class="insignias">${a.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}`;
     else if (a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario') {
       const idea = ideaDe(a);
@@ -913,7 +914,7 @@ function filaSesion(x) {
   return {
     n: S.numeroSesion(x), fecha: fmtNum(x.fecha), tipo: nombreTipo(x), formato: x.formato === 'online' ? 'online' : 'presencial',
     terapeuta: S.terapeuta(x.terapeutaId)?.nombre || '',
-    estado: x.estado !== 'hecha' ? 'Planificada' : [x.docId ? 'Diario' : 'Sin diario', x.enviado ? 'enviado' : '', x.feedback?.length ? 'feedback' : ''].filter(Boolean).join(' · '),
+    estado: x.estado !== 'hecha' ? 'Planificada' : [x.docId ? 'Diario' : 'Sin diario', x.enviado && !COMPANEROS ? 'enviado' : '', x.feedback?.length ? 'feedback' : ''].filter(Boolean).join(' · '),
     enlace: x.docId ? G.enlaceDoc(x.docId) : '',
   };
 }
@@ -933,17 +934,17 @@ function vCaso(codigo) {
     const paso = (ok, pend, t) => `<span class="paso ${ok ? 'hecho' : pend ? 'pendiente' : ''}"><i>${ok ? icon('check', 14) : ''}</i>${t}</span>`;
     const botones = !a.docId
       ? `<button class="btn primario" data-act="crear-diario" data-id="${esc(a.id)}" style="grid-column:span 2">${icon('doc', 16)}Crear diario crítico</button>`
-      : `<a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener" style="grid-column:span 2">${icon('externo', 16)}Abrir diario crítico</a>${a.noEnviar ? '' : !a.enviado
+      : `<a class="btn" href="${G.enlaceDoc(a.docId)}" target="_blank" rel="noopener" style="grid-column:span 2">${icon('externo', 16)}Abrir diario crítico</a>${COMPANEROS ? `<button class="btn" data-act="feedback" data-id="${esc(a.id)}" style="grid-column:span 2">Añadir feedback del terapeuta</button>` : a.noEnviar ? '' : !a.enviado
         ? `<button class="btn primario" data-act="marcar-enviado" data-id="${esc(a.id)}" style="grid-column:span 2">${icon('check', 16)}Ya lo he enviado</button>`
         : `<button class="btn primario" data-act="feedback" data-id="${esc(a.id)}" style="grid-column:span 2">Añadir feedback</button>`}`;
     return `<div class="tarjeta">
       <div class="fila-entre"><span style="font-size:15px;font-weight:700">Sesión ${n} · ${esc(nombreTipo(a))}</span><span class="pequeno suave">${esc(fmtCorta(a.fecha))}</span></div>
-      ${a.noEnviar ? '<span class="insignias"><span class="insignia">No se envía al terapeuta</span></span>' : `<div class="pasos">${paso(a.docId, !a.docId, 'Diario')}${paso(a.enviado, a.docId && !a.enviado, 'Enviado')}${paso(a.feedback?.length, a.enviado && !a.feedback?.length, 'Feedback')}</div>`}
+      ${COMPANEROS ? `<div class="pasos">${paso(a.docId, !a.docId, 'Diario')}${paso(a.feedback?.length, false, 'Feedback')}</div>` : a.noEnviar ? '<span class="insignias"><span class="insignia">No se envía al terapeuta</span></span>' : `<div class="pasos">${paso(a.docId, !a.docId, 'Diario')}${paso(a.enviado, a.docId && !a.enviado, 'Enviado')}${paso(a.feedback?.length, a.enviado && !a.feedback?.length, 'Feedback')}</div>`}
       ${a.notasCaliente ? `<p class="pequeno suave" style="line-height:1.45"><b>Notas en caliente:</b> ${esc(a.notasCaliente)}</p>` : ''}
       ${(a.feedback || []).map((f) => `<div class="feedback"><span class="tipo c-azul">Feedback · ${esc(fmtCorta(f.fecha))}</span>${esc(f.texto)}</div>`).join('')}
       <div class="botones">${botones}</div>
-      ${a.docId && !a.enviado && !a.noEnviar ? `<p class="mini suave">${AYUDA_PDF}</p>` : ''}
-      <div class="fila-entre"><a href="${rutaForm(a)}" class="pequeno" style="font-weight:600;padding:6px 0">Editar sesión</a>${!a.enviado ? `<button class="btn texto pequeno" data-act="no-enviar" data-id="${esc(a.id)}">${a.noEnviar ? 'Sí quiero enviarlo' : 'No enviar este diario'}</button>` : ''}</div>
+      ${!COMPANEROS && a.docId && !a.enviado && !a.noEnviar ? `<p class="mini suave">${AYUDA_PDF}</p>` : ''}
+      <div class="fila-entre"><a href="${rutaForm(a)}" class="pequeno" style="font-weight:600;padding:6px 0">Editar sesión</a>${!COMPANEROS && !a.enviado ? `<button class="btn texto pequeno" data-act="no-enviar" data-id="${esc(a.id)}">${a.noEnviar ? 'Sí quiero enviarlo' : 'No enviar este diario'}</button>` : ''}</div>
     </div>`;
   }).join('');
   return {
@@ -1103,13 +1104,14 @@ function vAjustes(params) {
   const titulo = (ic, t, sub = '') => `<div class="aj-titulo"><span class="aj-icono">${icon(ic, 18)}</span><span class="item-texto"><span class="aj-nombre">${t}</span>${sub ? `<span class="mini suave">${sub}</span>` : ''}</span></div>`;
   const paneles = {
     practicas: `
+    ${COMPANEROS ? `<div class="bloque"><button type="button" class="tarjeta guia-acceso" data-act="guia-uso">${titulo('ayuda', 'Guía de uso', 'Repasa cómo funciona la app en 1 minuto')}${icon('sig', 18)}</button></div>` : ''}
     <form id="f-aj" class="seccion bloque">
       <section class="tarjeta">${titulo('birrete', 'Mis prácticas', 'Aparece en la hoja de horas')}
         <div class="campo"><label for="a-nombre">Nombre y apellidos</label><input type="text" id="a-nombre" name="nombre" value="${esc(aj.nombre)}"></div>
         <div class="dos-col"><div class="campo"><label for="a-obj">Objetivo de horas</label><input type="number" id="a-obj" name="objetivoHoras" min="1" value="${esc(aj.objetivoHoras)}"></div>
         <div class="campo"><label for="a-per">Periodo</label><input type="text" id="a-per" name="periodo" value="${esc(aj.periodo)}"></div></div>
-        <div class="campo"><label for="a-tc">Tutorías de caso previstas en total</label><input type="number" id="a-tc" name="tcPrevistas" min="0" value="${esc(aj.tcPrevistas)}">
-          <span class="ayuda">Unas 7 al mes de octubre a enero = 28. Sirve para calcular cuántos espejos o coterapias te faltan.</span></div>
+        ${COMPANEROS ? '' : `<div class="campo"><label for="a-tc">Tutorías de caso previstas en total</label><input type="number" id="a-tc" name="tcPrevistas" min="0" value="${esc(aj.tcPrevistas)}">
+          <span class="ayuda">Unas 7 al mes de octubre a enero = 28. Sirve para calcular cuántos espejos o coterapias te faltan.</span></div>`}
       </section>
       <section class="tarjeta">${titulo('reloj', 'Horas que cuenta cada actividad')}
         <div class="lista">${horasCampo('espejo', 'Espejo')}${horasCampo('coterapia', 'Coterapia')}${horasCampo('tutoria_metodologica', 'Tutoría metodológica')}${horasCampo('tutoria_caso', 'Tutoría de caso')}${horasCampo('seminario', 'Seminario')}</div>
@@ -1186,14 +1188,14 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.10.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.11.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
       r.querySelector('#f-aj')?.addEventListener('submit', (e) => {
         e.preventDefault(); const v = leerForm(e.target);
         S.actualizar((st) => {
-          Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim(), tcPrevistas: Math.max(0, Number(v.tcPrevistas) || 0) });
+          Object.assign(st.ajustes, { nombre: v.nombre.trim(), objetivoHoras: Number(v.objetivoHoras) || 450, periodo: v.periodo.trim(), tcPrevistas: v.tcPrevistas === undefined ? st.ajustes.tcPrevistas : Math.max(0, Number(v.tcPrevistas) || 0) });
           for (const t of TIPOS_HOJA) st.ajustes.horas[t] = Number(v[`h_${t}`]) || 0;
         });
         toast('Ajustes guardados.');
@@ -1648,6 +1650,7 @@ const vNoEncontrado = () => ({ html: `<div class="pantalla sin-nav">${volver('#/
 const acciones = {
   conectar: (b) => conCarga(b, async () => { await conectarYSincronizar(); toast('Sincronizado.'); render(); }),
   'sync-reintentar': () => subir(),
+  'guia-uso': () => abrirGuiaUso(0),
   'copia-volver': async (b) => {
     const lista = (await idbGet('copias')) || []; const c = lista[Number(b.dataset.i)]; if (!c) return;
     confirmar('¿Volver a esta copia?', `Tus datos quedarán como estaban el ${new Date(c.fecha).toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' })}. Antes se guarda una copia de cómo están ahora, por si quieres deshacerlo.`, 'Volver a esta copia', async () => {
@@ -2080,7 +2083,7 @@ function lateral(sec) {
     <a href="#/inicio" class="lat-marca">${logoURL ? `<img src="${logoURL}" alt="Luria Lab">` : 'Luria Lab'}</a>
     <a href="#/nueva" class="btn primario lat-nueva">${icon('mas', 18)}Nueva entrada</a>
     <nav class="lat-grupo">${enlace('inicio', 'Inicio', 'inicio')}${enlace('agenda', 'Agenda', 'calendario')}${enlace('diario', 'Diario', 'diario')}${enlace('guia', 'Guía clínica', 'guia')}${enlace('pdp', 'Mi PDP', 'pdp')}${enlace('hexaflex', 'Hexaflex', 'hexa')}</nav>
-    <nav class="lat-grupo">${enlace('exportar', 'Exportar y entregas', 'descargar')}${enlace('ajustes', 'Ajustes', 'ajustes')}</nav>
+    <nav class="lat-grupo">${enlace('exportar', 'Exportar y entregas', 'descargar')}${enlace('ajustes', 'Ajustes', 'ajustes')}${COMPANEROS ? `<button type="button" class="lat-enlace" data-act="guia-uso">${icon('ayuda', 20)}<span>Guía de uso</span></button>` : ''}</nav>
     <div class="lat-pie">${estado}</div>
   </aside>`;
 }
@@ -2127,9 +2130,55 @@ function render() {
   }
   location.hash = '#/inicio';
 }
+
+// ---------- Guía de uso (versión para compañeros) ----------
+const PASOS_GUIA = [
+  { ic: 'inicio', t: 'Te damos la bienvenida a Luria Lab', p: ['Tu cuaderno de prácticas: registra lo que haces, lleva la cuenta de tus horas y crea tus documentos en un momento.', 'Te enseño lo básico en un minuto.'] },
+  { ic: 'candado', t: 'Tus datos, en tu Google', p: ['Al conectar tu cuenta de Google, tus registros se guardan en tu propio Drive. La app solo ve los archivos que ella misma crea: nunca tu correo ni el resto de tu Drive.', 'Arriba verás si está todo al día: <b>verde</b>, sincronizado; <b>azul o ámbar</b>, toca para sincronizar.', 'Google te avisará de que la app no está verificada: es normal mientras está en pruebas.'] },
+  { ic: 'ajustes', t: 'Empieza por Ajustes', p: ['En <b>Ajustes › Prácticas</b> pon tu nombre (sale en la hoja de horas) y añade a tus terapeutas.', 'Si hiciste actividades antes de usar la app, en <b>Ajustes › Plantillas</b> puedes importar las hojas de horas que ya enviaste.'], ir: ['#/ajustes', 'Ir a Ajustes'] },
+  { ic: 'mas', t: 'Registra cada actividad', p: ['Pulsa <b>+ Nueva entrada</b> y elige qué has hecho: espejo, coterapia, tutoría de caso, tutoría metodológica o seminario.', 'Las tutorías metodológicas y los seminarios ya vienen en el calendario: solo tienes que marcar <b>Asistí</b>.'] },
+  { ic: 'calendario', t: 'Planifica en la Agenda', p: ['Apunta también las sesiones que tienes por delante.', 'Cuando pase la fecha, la app te preguntará en Inicio si las completas.'], ir: ['#/agenda', 'Ver la agenda'] },
+  { ic: 'doc', t: 'Espejos y coterapias', p: ['Usa solo el código del caso, nunca nombres. Si quieres, añade la inicial del paciente: se guarda solo en tu móvil.', 'Desde el caso, <b>Crear diario crítico</b> genera el documento en tu Drive con la plantilla y los datos de la sesión ya rellenos.', 'Si el terapeuta te da feedback, guárdalo en el propio caso.'] },
+  { ic: 'birrete', t: 'Tutorías y seminarios', p: ['Crea un <b>documento de apuntes</b> para escribir durante la sesión, a tu manera.', 'En tutorías metodológicas y seminarios, cuando tengas tus apuntes en limpio, <b>sube el PDF a la Guía clínica</b>: quedan ordenados por temas, con su icono.'], ir: ['#/guia', 'Ver la Guía clínica'] },
+  { ic: 'descargar', t: 'Horas y entregas', p: ['En Inicio ves tus horas al día.', 'En <b>Exportar y entregas</b> tienes la hoja de horas del mes con las casillas ya marcadas y un borrador del diario crítico mensual.', 'La app nunca envía nada: los documentos los mandas tú desde tu correo.'], ir: ['#/exportar', 'Ver Exportar'] },
+  { ic: 'hexa', t: 'Y además', p: ['<b>Mi PDP</b>: tus objetivos y su seguimiento.', '<b>Hexaflex</b>: un banco de ejercicios de ACT para practicar por escrito, en audio y en role play.'] },
+  { ic: 'check', t: '¡Listo!', p: ['Puedes volver a ver esta guía cuando quieras desde <b>Ajustes</b> o con el botón <b>?</b> de Inicio.'], fin: true },
+];
+function abrirGuiaUso(i = 0) {
+  document.querySelector('.tour')?.remove();
+  const paso = PASOS_GUIA[i]; const ultimo = i === PASOS_GUIA.length - 1;
+  const capa = document.createElement('div'); capa.className = 'tour'; capa.setAttribute('role', 'dialog'); capa.setAttribute('aria-modal', 'true'); capa.setAttribute('aria-label', 'Guía de uso');
+  const conectar = paso.fin && G.configurado() && !G.conectado();
+  capa.innerHTML = `<div class="tour-tarjeta">
+    <div class="tour-arriba"><span class="mini suave">${i + 1} de ${PASOS_GUIA.length}</span>${ultimo ? '' : '<button type="button" class="btn texto pequeno" data-tour="cerrar">Saltar</button>'}</div>
+    <span class="tour-icono">${icon(paso.ic, 30)}</span>
+    <h2 class="tour-titulo">${paso.t}</h2>
+    ${paso.p.map((x) => `<p class="tour-texto">${x}</p>`).join('')}
+    ${paso.ir ? `<button type="button" class="btn texto" data-tour="ir">${icon('sig', 16)}${paso.ir[1]}</button>` : ''}
+    <div class="tour-puntos" aria-hidden="true">${PASOS_GUIA.map((_, k) => `<i class="${k === i ? 'activo' : ''}"></i>`).join('')}</div>
+    <div class="tour-botones">${i > 0 ? '<button type="button" class="btn" data-tour="atras">Atrás</button>' : '<span></span>'}
+      ${ultimo ? (conectar ? '<button type="button" class="btn primario" data-tour="conectar">Conectar con Google</button>' : '<button type="button" class="btn primario" data-tour="cerrar">Empezar</button>') : '<button type="button" class="btn primario" data-tour="sig">Siguiente</button>'}</div>
+    ${ultimo && conectar ? '<button type="button" class="btn texto pequeno" data-tour="cerrar" style="align-self:center">Ahora no</button>' : ''}
+  </div>`;
+  document.body.appendChild(capa);
+  const cerrar = () => { capa.remove(); LS.set('ll-guia-vista', '1'); document.removeEventListener('keydown', tecla); };
+  const tecla = (ev) => { if (ev.key === 'Escape') cerrar(); if (ev.key === 'ArrowRight' && !ultimo) { document.removeEventListener('keydown', tecla); abrirGuiaUso(i + 1); } if (ev.key === 'ArrowLeft' && i > 0) { document.removeEventListener('keydown', tecla); abrirGuiaUso(i - 1); } };
+  document.addEventListener('keydown', tecla);
+  capa.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-tour]'); if (!b) return;
+    const q = b.dataset.tour;
+    if (q === 'sig') { document.removeEventListener('keydown', tecla); abrirGuiaUso(i + 1); }
+    else if (q === 'atras') { document.removeEventListener('keydown', tecla); abrirGuiaUso(i - 1); }
+    else if (q === 'ir') { cerrar(); location.hash = paso.ir[0]; }
+    else if (q === 'conectar') { cerrar(); conectarYSincronizar().then(() => { toast('Sincronizado.'); render(); }).catch((e) => toast(e.message || 'No se pudo conectar.', { error: true })); }
+    else cerrar();
+  });
+  capa.querySelector('[data-tour="sig"], [data-tour="cerrar"]')?.focus();
+}
 window.addEventListener('hashchange', () => { cerrarModal(); render(); window.scrollTo(0, 0); });
 render();
 guardarCopia('Al abrir la app', 6 * 3600e3);
+if (COMPANEROS && !LS.get('ll-guia-vista')) setTimeout(() => abrirGuiaUso(0), 300);
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
