@@ -1186,7 +1186,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.10.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.10.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1880,7 +1880,9 @@ function vGuiaEntrada(id) {
   return {
     html: `<div class="pantalla sin-nav ${pdf ? 'ancha-pdf' : ''}">${volver('#/guia', 'Guía clínica')}
     <article class="guia-entrada">
-      <h1 class="titulo">${e.emoji ? `<span class="emoji-titulo" aria-hidden="true">${esc(e.emoji)}</span> ` : ''}${esc(e.titulo)}</h1>
+      <div class="guia-cabecera"><button type="button" class="guia-emoji ${e.emoji ? '' : 'vacio'}" data-act="guia-editar" data-id="${esc(e.id)}" aria-label="${e.emoji ? 'Cambiar el icono' : 'Añadir un icono'}">${e.emoji ? esc(e.emoji) : icon('mas', 18)}</button>
+        <h1 class="titulo">${esc(e.titulo)}</h1>
+        <button type="button" class="icono-btn" data-act="guia-editar" data-id="${esc(e.id)}" aria-label="Editar título, icono y temas">${icon('editar', 18)}</button></div>
       <span class="pequeno suave">${act ? `<a href="${rutaVer(act)}">${esc(e.fuente)}</a>` : esc(e.fuente || '')}</span>
       ${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<a class="insignia" href="#/guia?tema=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</span>` : ''}
       ${pdf ? `<div class="visor-pdf" id="visor-pdf" role="button" tabindex="0" aria-label="Ver el PDF a pantalla completa"><p class="mini suave visor-msg"><span class="spinner" aria-hidden="true"></span> Cargando el PDF…</p></div>
