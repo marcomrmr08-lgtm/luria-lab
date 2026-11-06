@@ -1096,6 +1096,7 @@ async function pintarCopias(r) {
   caja.innerHTML = lista.length ? lista.map((c, i) => `<div class="fila"><span class="item-texto"><span style="font-size:15px">${fecha(c.fecha)}</span><span class="item-sub">${esc(c.motivo)} · ${((n) => `${n} ${n === 1 ? 'actividad hecha' : 'actividades hechas'}`)((c.datos.actividades || []).filter((a) => a.estado === 'hecha').length)}</span></span><button class="btn texto" data-act="copia-volver" data-i="${i}">Volver a esta</button></div>`).join('')
     : '<p class="mini suave" style="padding:4px 0">Aún no hay copias. Se hará la primera la próxima vez que abras la app.</p>';
 }
+const URL_COMPANEROS = 'https://marcomrmr08-lgtm.github.io/luria-lab/companeros/';
 const PESTANAS_AJUSTES = [['practicas', 'Prácticas', 'birrete'], ['plantillas', 'Plantillas', 'doc'], ['cuenta', 'Cuenta', 'candado'], ['datos', 'Datos', 'descargar']];
 function vAjustes(params) {
   const s = S.datos(); const aj = s.ajustes;
@@ -1104,7 +1105,11 @@ function vAjustes(params) {
   const titulo = (ic, t, sub = '') => `<div class="aj-titulo"><span class="aj-icono">${icon(ic, 18)}</span><span class="item-texto"><span class="aj-nombre">${t}</span>${sub ? `<span class="mini suave">${sub}</span>` : ''}</span></div>`;
   const paneles = {
     practicas: `
-    ${COMPANEROS ? `<div class="bloque"><button type="button" class="tarjeta guia-acceso" data-act="guia-uso">${titulo('ayuda', 'Guía de uso', 'Repasa cómo funciona la app en 1 minuto')}${icon('sig', 18)}</button></div>` : ''}
+    ${COMPANEROS ? `<div class="bloque"><button type="button" class="tarjeta guia-acceso" data-act="guia-uso">${titulo('ayuda', 'Guía de uso', 'Repasa cómo funciona la app en 1 minuto')}${icon('sig', 18)}</button></div>`
+      : `<div class="bloque"><section class="tarjeta">${titulo('bocadillo', 'App para compañeros', 'La versión que compartes, con la guía de uso y sin cupo ni envío al terapeuta')}
+        <div class="botones"><a class="btn" href="${URL_COMPANEROS}" target="_blank" rel="noopener">${icon('externo', 16)}Abrir</a><button type="button" class="btn" data-act="copiar-companeros">${icon('copiar', 16)}Copiar</button></div>
+        <span class="mini suave" style="line-height:1.45">Al abrirla en este dispositivo verás tus mismos datos: sirve para ver cómo la ven ellos.</span>
+      </section></div>`}
     <form id="f-aj" class="seccion bloque">
       <section class="tarjeta">${titulo('birrete', 'Mis prácticas', 'Aparece en la hoja de horas')}
         <div class="campo"><label for="a-nombre">Nombre y apellidos</label><input type="text" id="a-nombre" name="nombre" value="${esc(aj.nombre)}"></div>
@@ -1188,7 +1193,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.11.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.11.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1651,6 +1656,7 @@ const acciones = {
   conectar: (b) => conCarga(b, async () => { await conectarYSincronizar(); toast('Sincronizado.'); render(); }),
   'sync-reintentar': () => subir(),
   'guia-uso': () => abrirGuiaUso(0),
+  'copiar-companeros': async () => { try { await navigator.clipboard.writeText(URL_COMPANEROS); toast('Enlace copiado.'); } catch { abrirModalTexto(URL_COMPANEROS); } },
   'copia-volver': async (b) => {
     const lista = (await idbGet('copias')) || []; const c = lista[Number(b.dataset.i)]; if (!c) return;
     confirmar('¿Volver a esta copia?', `Tus datos quedarán como estaban el ${new Date(c.fecha).toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' })}. Antes se guarda una copia de cómo están ahora, por si quieres deshacerlo.`, 'Volver a esta copia', async () => {
