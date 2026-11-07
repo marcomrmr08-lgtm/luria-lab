@@ -1,6 +1,7 @@
 // Luria Lab · cuadernillo de prácticas
 import { CONFIG } from './config.js';
 import { COMPANEROS } from './edicion.js';
+import { ILUSTRACION } from './ilustraciones.js';
 // Rutas de archivos de la app, válidas también desde companeros/ (que está una carpeta más abajo)
 const enApp = (ruta) => new URL(`../${ruta}`, import.meta.url).href;
 import * as S from './store.js';
@@ -1195,7 +1196,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.11.2</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.12.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1366,6 +1367,7 @@ function vHxProceso(k) {
     html: `<div class="pantalla sin-nav">${volver('#/hexaflex', 'Hexaflex')}
     <div class="item-texto"><span class="tipo pilar-txt-${PILAR[k]}">${esc(t.pilar || '')} · ${esc(p.nombre)}</span><h1 class="titulo">${esc(t.lema || p.nombre)}</h1>
       <p class="texto-largo" style="color:var(--gris);font-size:15px">${esc(t.intro || '')}</p></div>
+    <div class="ilus-caja pilar-${PILAR[k]}">${ILUSTRACION[k] || ''}</div>
     <div class="fila-entre tarjeta" style="padding:12px 14px;flex-direction:row"><span class="pequeno" style="font-weight:700">Tu nivel en ${esc(p.nombre.toLowerCase())}</span><span style="display:flex;gap:10px">${NIVELES.map(([nk, nt]) => `<span class="mini ${niv[nk] ? 'c-verde' : 'suave'}" style="font-weight:700">${niv[nk] ? '✓ ' : ''}${nt}</span>`).join('')}</span></div>
     <div class="segmentado" role="tablist">${tb('teoria', 'Teoría')}${tb('fichas', `Fichas (${fichas.length})`)}</div>
     ${cuerpo}</div>`,
@@ -1590,35 +1592,57 @@ function modalPracticaFicha(id) {
 
 // ======================= Fase 3: Mi PDP =======================
 const PDP = () => S.datos().pdp;
+// Qué cajas del PDP están en modo edición ('fuertes', 'mejora', 'o:<id>', 'rev:<n>')
+const pdpEdit = new Set();
+const parrafosPdp = (t, vacio) => (t ? t.split(/\n+/).filter(Boolean).map((x) => `<p>${esc(x)}</p>`).join('') : `<p class="pdp-vacio">${vacio}</p>`);
+function anilloPdp(hechas, total) {
+  const r = 20; const c = 2 * Math.PI * r; const f = total ? hechas / total : 0;
+  return `<span class="pdp-anillo" aria-label="${hechas} de ${total} conductas hechas"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="${r}" class="fondo"/><circle cx="24" cy="24" r="${r}" class="avance" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - f)}"/></svg><b>${hechas}/${total}</b></span>`;
+}
 function vPDP() {
-  const p = PDP(); const s = S.datos();
+  const p = PDP();
   const practicas = S.hechas().filter((a) => a.tipo === 'practica_pdp').sort((x, y) => porFechaHora(y, x));
+  const ed = (k) => pdpEdit.has(k);
+  const botonesForm = (k) => `<div class="botones"><button type="button" class="btn" data-act="pdp-cancelar" data-k="${k}">Cancelar</button><button class="btn primario">Guardar</button></div>`;
+  const cajaTexto = (k, titulo, clase, vacio, valor, filas = 5) => ed(k)
+    ? `<form class="tarjeta pdp-caja ${clase}" data-form="${k}"><label class="pdp-etq" for="pf-${k}">${titulo}</label><textarea id="pf-${k}" name="v" class="campo-texto" rows="${filas}" placeholder="${esc(vacio)}">${esc(valor)}</textarea>${botonesForm(k)}</form>`
+    : `<section class="tarjeta pdp-caja ${clase} pdp-ver" data-act="pdp-editar" data-k="${k}" role="button" tabindex="0" aria-label="Editar ${esc(titulo)}"><span class="pdp-etq">${titulo}<span class="pdp-lapiz">${icon('editar', 16)}</span></span><div class="pdp-texto">${parrafosPdp(valor, vacio)}</div></section>`;
   const objetivo = (o, i) => {
-    const hechas = (o.conductas || []).filter((c) => c.hecha).length; const total = (o.conductas || []).length;
-    return `<section class="tarjeta" data-obj="${esc(o.id)}">
-      <div class="fila-entre"><span class="tipo c-verde" style="color:var(--verde)">Objetivo ${i + 1}</span><span class="pequeno suave" style="font-weight:600">${hechas} de ${total} conductas</span></div>
-      <label for="o-${o.id}" class="oculto">Objetivo ${i + 1}</label>
-      <textarea id="o-${o.id}" data-o="${esc(o.id)}" data-k="titulo" rows="2" placeholder="¿Qué objetivo quiero conseguir?" style="font-size:17px;font-weight:700;border:0;padding:0">${esc(o.titulo)}</textarea>
-      ${total ? `<div class="barra" aria-hidden="true"><div style="width:${(hechas / total) * 100}%"></div></div>` : ''}
-      <span class="etiqueta-grupo" style="margin:0">¿De qué conductas me voy a servir?</span>
-      ${(o.conductas || []).map((c) => `<div style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" data-conducta="${esc(c.id)}" data-o="${esc(o.id)}" ${c.hecha ? 'checked' : ''} aria-label="Hecha" style="width:22px;height:22px;margin-top:10px;accent-color:var(--verde)"><textarea data-conducta-txt="${esc(c.id)}" data-o="${esc(o.id)}" rows="1" style="flex:1;min-height:40px;padding:8px 10px">${esc(c.texto)}</textarea><button class="btn texto" data-act="pdp-quitar-conducta" data-o="${esc(o.id)}" data-c="${esc(c.id)}" aria-label="Quitar conducta">${icon('papelera', 16)}</button></div>`).join('')}
-      <button class="btn texto pequeno" data-act="pdp-conducta" data-o="${esc(o.id)}" style="align-self:flex-start">${icon('mas', 16)} Añadir conducta</button>
-      <span class="etiqueta-grupo" style="margin:0">¿Cómo voy a registrar mis avances?</span>
-      <textarea data-o="${esc(o.id)}" data-k="registro" rows="2" placeholder="p. ej. fichas Hexaflex practicadas, role plays registrados…">${esc(o.registro)}</textarea>
-      <button class="btn texto pequeno" data-act="pdp-quitar-obj" data-o="${esc(o.id)}" style="align-self:flex-end;color:var(--error)">Quitar objetivo</button>
+    const cs = o.conductas || []; const hechas = cs.filter((c) => c.hecha).length;
+    if (ed(`o:${o.id}`)) {
+      return `<form class="tarjeta pdp-obj" data-form="o:${esc(o.id)}">
+        <label class="pdp-etq" for="ot-${o.id}">Objetivo ${i + 1}</label>
+        <textarea id="ot-${o.id}" name="titulo" class="campo-texto grande" rows="2" placeholder="¿Qué objetivo quiero conseguir?">${esc(o.titulo)}</textarea>
+        <span class="pdp-etq">Conductas</span>
+        <div class="pdp-edit-lista">${cs.map((c) => `<div class="pdp-edit-c"><textarea name="c:${esc(c.id)}" class="campo-texto" rows="2" placeholder="Algo concreto que voy a hacer" aria-label="Conducta">${esc(c.texto)}</textarea><button type="button" class="icono-btn" data-act="pdp-c-quitar" aria-label="Quitar conducta">${icon('papelera', 16)}</button></div>`).join('')}</div>
+        <button type="button" class="btn texto pequeno" data-act="pdp-c-nueva" style="align-self:flex-start">${icon('mas', 16)} Añadir conducta</button>
+        <label class="pdp-etq" for="or-${o.id}">¿Cómo voy a registrar mis avances?</label>
+        <textarea id="or-${o.id}" name="registro" class="campo-texto" rows="2" placeholder="p. ej. fichas del Hexaflex practicadas, role plays registrados…">${esc(o.registro)}</textarea>
+        ${botonesForm(`o:${esc(o.id)}`)}
+        <button type="button" class="btn texto pequeno" data-act="pdp-quitar-obj" data-o="${esc(o.id)}" style="align-self:center;color:var(--error)">Quitar objetivo</button>
+      </form>`;
+    }
+    return `<section class="tarjeta pdp-obj">
+      <div class="pdp-obj-cab"><span class="pdp-etq">Objetivo ${i + 1}</span><button class="icono-btn" data-act="pdp-editar" data-k="o:${esc(o.id)}" aria-label="Editar objetivo ${i + 1}">${icon('editar', 18)}</button></div>
+      <div class="pdp-obj-tit"><h3>${esc(o.titulo) || '<span class="pdp-vacio">Sin título</span>'}</h3>${cs.length ? anilloPdp(hechas, cs.length) : ''}</div>
+      ${cs.length ? `<ul class="pdp-conductas">${cs.map((c) => `<li class="${c.hecha ? 'hecha' : ''}"><button type="button" class="pdp-check" data-act="pdp-check" data-o="${esc(o.id)}" data-c="${esc(c.id)}" aria-pressed="${c.hecha}" aria-label="${c.hecha ? 'Marcar como pendiente' : 'Marcar como hecha'}">${icon('check', 14)}</button><span>${esc(c.texto)}</span></li>`).join('')}</ul>`
+        : `<button type="button" class="btn texto pequeno" data-act="pdp-editar" data-k="o:${esc(o.id)}" style="align-self:flex-start">${icon('mas', 16)} Añadir conductas</button>`}
+      ${o.registro ? `<div class="pdp-registro">${icon('reloj', 16)}<span><b>Cómo registro mis avances</b>${esc(o.registro)}</span></div>` : ''}
     </section>`;
   };
-  const revisiones = REVISIONES_PDP.map((n) => {
-    const tm = S.actividad(`tm-${n}`); const r = p.revisiones[n] || {};
-    return `<section class="tarjeta"><div class="fila-entre"><span class="item-texto"><span style="font-size:15px;font-weight:700">Revisión ${REVISIONES_PDP.indexOf(n) + 1} · T. metodológica ${n}</span><span class="item-sub">${esc(fmtFecha(tm?.fecha))}</span></span>${tm?.estado === 'hecha' ? '<span class="insignia ok">Hecha</span>' : ''}</div>
-      <textarea data-rev="${n}" rows="3" placeholder="Qué quiero comentar con mi tutora · qué me dijo">${esc(r.notas)}</textarea></section>`;
+  const revisiones = REVISIONES_PDP.map((n, idx) => {
+    const tm = S.actividad(`tm-${n}`); const r = p.revisiones[n] || {}; const k = `rev:${n}`;
+    const cab = `<div class="fila-entre"><span class="item-texto"><span style="font-size:15px;font-weight:700">Revisión ${idx + 1} · T. metodológica ${n}</span><span class="item-sub">${esc(fmtFecha(tm?.fecha))}</span></span>${tm?.estado === 'hecha' ? '<span class="insignia ok">Hecha</span>' : ''}</div>`;
+    return ed(k)
+      ? `<form class="tarjeta" data-form="${k}">${cab}<textarea name="v" class="campo-texto" rows="4" placeholder="Qué quiero comentar con mi tutora · qué me dijo" aria-label="Notas de la revisión ${idx + 1}">${esc(r.notas)}</textarea>${botonesForm(k)}</form>`
+      : `<section class="tarjeta pdp-ver" data-act="pdp-editar" data-k="${k}" role="button" tabindex="0" aria-label="Editar notas de la revisión ${idx + 1}">${cab}<div class="pdp-texto pequeno">${parrafosPdp(r.notas, 'Toca para apuntar qué comentar o qué te dijo')}</div></section>`;
   }).join('');
   return {
-    html: `<div class="pantalla ancha"><div class="item-texto"><h1 class="titulo">Mi PDP</h1><span class="suave pequeno">Plan de desarrollo profesional · se guarda solo <span class="guardado c-verde" style="font-weight:700"></span></span></div>
+    html: `<div class="pantalla ancha"><div class="item-texto"><h1 class="titulo">Mi PDP</h1><span class="suave pequeno">Plan de desarrollo profesional</span></div>
     <h2 class="etiqueta-grupo">Mi punto de partida</h2>
-    <div class="dos-col">
-      <section class="tarjeta" style="background:var(--exito-cl);border-color:transparent"><label for="p-fuertes" class="tipo c-verde">Puntos fuertes</label><textarea id="p-fuertes" data-pdp="fuertes" rows="6" style="background:transparent;border:0;padding:0">${esc(p.fuertes)}</textarea></section>
-      <section class="tarjeta" style="background:var(--ambar-cl);border-color:transparent"><label for="p-mejora" class="tipo c-ambar">Áreas de mejora</label><textarea id="p-mejora" data-pdp="mejora" rows="6" style="background:transparent;border:0;padding:0">${esc(p.mejora)}</textarea></section>
+    <div class="dos-col pdp-partida">
+      ${cajaTexto('fuertes', 'Puntos fuertes', 'pdp-fuertes', 'Toca para escribir tus puntos fuertes', p.fuertes)}
+      ${cajaTexto('mejora', 'Áreas de mejora', 'pdp-mejora', 'Toca para escribir tus áreas de mejora', p.mejora)}
     </div>
     <div class="cols"><div class="col">
     <h2 class="etiqueta-grupo">Mis objetivos <span style="text-transform:none;font-weight:600">(2 o 3 como máximo)</span></h2>
@@ -1631,13 +1655,24 @@ function vPDP() {
     </div></div>
     </div>${nav('pdp')}`,
     mount(r) {
-      const ok = () => { const a = r.querySelector('.guardado'); if (a) { a.textContent = '· guardado'; setTimeout(() => { a.textContent = ''; }, 1500); } };
-      const obj = (id) => PDP().objetivos.find((o) => o.id === id);
-      r.querySelectorAll('[data-pdp]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { PDP()[el.dataset.pdp] = el.value.trim(); }); ok(); }));
-      r.querySelectorAll('textarea[data-k]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { obj(el.dataset.o)[el.dataset.k] = el.value.trim(); }); ok(); }));
-      r.querySelectorAll('[data-conducta-txt]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { obj(el.dataset.o).conductas.find((c) => c.id === el.dataset.conductaTxt).texto = el.value.trim(); }); ok(); }));
-      r.querySelectorAll('[data-conducta]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { obj(el.dataset.o).conductas.find((c) => c.id === el.dataset.conducta).hecha = el.checked; }); render(); }));
-      r.querySelectorAll('[data-rev]').forEach((el) => el.addEventListener('change', () => { S.actualizar(() => { PDP().revisiones[el.dataset.rev] = { ...(PDP().revisiones[el.dataset.rev] || {}), notas: el.value.trim() }; }); ok(); }));
+      r.querySelectorAll('.pdp-ver[role=button]').forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } }));
+      r.querySelectorAll('form[data-form]').forEach((f) => f.addEventListener('submit', (e) => {
+        e.preventDefault(); const k = f.dataset.form;
+        S.actualizar(() => {
+          const P = PDP();
+          if (k === 'fuertes' || k === 'mejora') P[k] = f.elements.v.value.trim();
+          else if (k.startsWith('rev:')) { const n = k.slice(4); P.revisiones[n] = { ...(P.revisiones[n] || {}), notas: f.elements.v.value.trim() }; }
+          else if (k.startsWith('o:')) {
+            const o = P.objetivos.find((x) => x.id === k.slice(2)); if (!o) return;
+            const antes = new Map((o.conductas || []).map((c) => [c.id, c]));
+            o.titulo = f.elements.titulo.value.trim(); o.registro = f.elements.registro.value.trim();
+            o.conductas = [...f.querySelectorAll('[name^="c:"]')].map((inp) => ({ id: inp.name.slice(2), texto: inp.value.trim() })).filter((c) => c.texto)
+              .map((c) => ({ id: antes.has(c.id) ? c.id : S.nuevoId(), texto: c.texto, hecha: antes.get(c.id)?.hecha || false }));
+          }
+        });
+        pdpEdit.delete(k); toast('Guardado.'); render();
+      }));
+      r.querySelector('form[data-form] textarea, form[data-form] input')?.focus();
     },
   };
 }
@@ -1707,10 +1742,23 @@ const acciones = {
     await google(); await G.borrarArchivo(b.dataset.v);
     S.actualizar(() => { f.videos = f.videos.filter((x) => x.id !== b.dataset.v); }); render();
   })),
-  'pdp-objetivo': () => { S.actualizar((s) => { if (s.pdp.objetivos.length < 3) s.pdp.objetivos.push({ id: S.nuevoId(), titulo: '', conductas: [], registro: '' }); }); render(); },
-  'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
-  'pdp-conducta': (b) => { S.actualizar((s) => { s.pdp.objetivos.find((o) => o.id === b.dataset.o).conductas.push({ id: S.nuevoId(), texto: '', hecha: false }); }); render(); app.querySelector(`[data-o="${b.dataset.o}"][data-conducta-txt]:last-of-type`); const ts = app.querySelectorAll(`textarea[data-conducta-txt][data-o="${b.dataset.o}"]`); ts[ts.length - 1]?.focus(); },
-  'pdp-quitar-conducta': (b) => { S.actualizar((s) => { const o = s.pdp.objetivos.find((x) => x.id === b.dataset.o); o.conductas = o.conductas.filter((c) => c.id !== b.dataset.c); }); render(); },
+  'pdp-objetivo': () => { let id = null; S.actualizar((s) => { if (s.pdp.objetivos.length < 3) { id = S.nuevoId(); s.pdp.objetivos.push({ id, titulo: '', conductas: [], registro: '' }); } }); if (id) pdpEdit.add(`o:${id}`); render(); },
+  'pdp-editar': (b) => { pdpEdit.add(b.dataset.k); render(); },
+  'pdp-cancelar': (b) => {
+    const k = b.dataset.k; pdpEdit.delete(k);
+    // Un objetivo recién creado y vacío desaparece al cancelar
+    if (k.startsWith('o:')) { const o = PDP().objetivos.find((x) => x.id === k.slice(2)); if (o && !o.titulo && !(o.conductas || []).length && !o.registro) S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((x) => x !== o); }); }
+    render();
+  },
+  'pdp-check': (b) => { S.actualizar(() => { const c = PDP().objetivos.find((o) => o.id === b.dataset.o)?.conductas.find((x) => x.id === b.dataset.c); if (c) c.hecha = !c.hecha; }); render(); },
+  'pdp-c-nueva': (b) => {
+    const lista = b.closest('form').querySelector('.pdp-edit-lista');
+    const d = document.createElement('div'); d.className = 'pdp-edit-c';
+    d.innerHTML = `<textarea name="c:nueva-${Date.now()}" class="campo-texto" rows="2" placeholder="Algo concreto que voy a hacer" aria-label="Conducta"></textarea><button type="button" class="icono-btn" data-act="pdp-c-quitar" aria-label="Quitar conducta">${icon('papelera', 16)}</button>`;
+    lista.appendChild(d); d.querySelector('textarea').focus();
+  },
+  'pdp-c-quitar': (b) => b.closest('.pdp-edit-c').remove(),
+  'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { pdpEdit.delete(`o:${b.dataset.o}`); S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
   'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
   'cal-on': (b) => conCarga(b, async () => {
     await G.conectar({ calendario: true });
@@ -1869,7 +1917,12 @@ function vGuia(params) {
     html: `<div class="pantalla"><h1 class="titulo">Guía clínica</h1>
     ${g.length ? `<input type="search" id="buscar-guia" placeholder="Buscar por título, tema o sesión" value="${esc(params?.get('q') || '')}" autocomplete="off">
       ${temas.length ? `<div class="chips"><a href="${enlace('')}" class="chip ${!tema ? 'oscuro' : ''}">Todo</a>${temas.map((t) => `<a href="${enlace(t)}" class="chip ${tema === t ? 'oscuro' : ''}">${esc(t)}</a>`).join('')}</div>` : ''}
-      <div class="seccion">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="item">${iconoGuia(e)}<span class="item-texto"><span class="item-titulo">${esc(e.titulo)}</span><span class="item-sub">${esc(e.fuente || '')}</span>${e.temas?.length ? `<span class="insignias">${e.temas.map((t) => `<span class="insignia">${esc(t)}</span>`).join('')}</span>` : ''}</span>${icon('sig', 18)}</a>`).join('') || '<p class="vacio">Nada coincide con la búsqueda.</p>'}</div>`
+      ${lista.length ? `<div class="guia-tarjetas">${lista.map((e) => `<a href="#/guia/${esc(e.id)}" class="guia-tarjeta">
+        <span class="gt-icono ${e.emoji ? '' : 'sin-emoji'}">${e.emoji ? esc(e.emoji) : icon(e.tipo === 'pdf' ? 'doc' : 'guia', 28)}</span>
+        <span class="gt-titulo">${esc(e.titulo)}</span>
+        <span class="gt-fuente">${esc((e.fuente || '').split(' · ')[0])}</span>
+        ${e.temas?.length ? `<span class="gt-temas">${e.temas.slice(0, 2).map((t) => `<span>${esc(t)}</span>`).join('')}</span>` : ''}
+      </a>`).join('')}</div>` : '<p class="vacio">Nada coincide con la búsqueda.</p>'}`
     : `<div class="tarjeta" style="gap:10px"><p style="line-height:1.5">Aquí se reúnen en PDF tus apuntes de las tutorías metodológicas y los seminarios, ordenados por temas.</p><p class="pequeno suave" style="line-height:1.5">Abre una tutoría o un seminario y pulsa «Subir PDF a la Guía clínica». También puedes subir aquí cualquier otro PDF que quieras tener a mano.</p></div>`}
     <button class="btn" data-act="guia-pdf">${icon('subir', 16)}Subir un PDF</button>
     </div>${nav('guia')}`,

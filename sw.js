@@ -1,10 +1,10 @@
 // Service worker: guarda la app en el dispositivo para que abra rápido y funcione sin conexión.
 // No guarda nada de Google (documentos, correos, datos): eso siempre va directo a Google.
-const VERSION = 'luria-lab-v3.11.2';
+const VERSION = 'luria-lab-v3.12.0';
 const ARCHIVOS = [
   './', './index.html', './styles.css', './manifest.webmanifest',
   './js/app.js', './js/config.js', './js/calendario.js', './js/store.js', './js/google.js',
-  './js/documentos.js', './js/hojaHoras.js', './js/zip.js', './js/ui.js', './js/hexaflexBase.js', './js/edicion.js', './companeros/', './companeros/index.html',
+  './js/documentos.js', './js/hojaHoras.js', './js/zip.js', './js/ui.js', './js/hexaflexBase.js', './js/edicion.js', './js/ilustraciones.js', './companeros/', './companeros/index.html',
   './plantillas/diario-critico.docx', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 
