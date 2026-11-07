@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- Versión para compañeros: usa los mismos archivos que la app principal -->
-<base href="../">
+<!-- Versión para compañeros: usa los mismos archivos que la app principal, una carpeta más arriba.
+     Sin <base>: los enlaces internos (#/…) deben quedarse en esta página. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Luria Lab</title>
 <meta name="description" content="Cuaderno de prácticas clínicas: agenda, registro de actividades, horas y diario crítico.">
@@ -11,19 +11,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Luria Lab">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="manifest" href="companeros/manifest.webmanifest">
-<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../styles.css">
 <script>window.LL_EDICION = 'companeros';</script>
 </head>
 <body>
 <main id="app" aria-live="polite"></main>
 <dialog id="modal" aria-label="Ventana"></dialog>
 <div id="toast" class="toast" role="status"></div>
-<script type="module" src="js/app.js"></script>
+<script type="module" src="../js/app.js"></script>
 </body>
 </html>

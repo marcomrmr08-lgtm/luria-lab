@@ -1,6 +1,8 @@
 // Luria Lab · cuadernillo de prácticas
 import { CONFIG } from './config.js';
 import { COMPANEROS } from './edicion.js';
+// Rutas de archivos de la app, válidas también desde companeros/ (que está una carpeta más abajo)
+const enApp = (ruta) => new URL(`../${ruta}`, import.meta.url).href;
 import * as S from './store.js';
 import * as G from './google.js';
 import * as D from './documentos.js';
@@ -239,7 +241,7 @@ async function plantillaDiarioId() {
   // La predeterminada se rehace si cambia de versión (las plantillas propias no se tocan)
   if (aj.plantillaDiarioId && (aj.plantillaPropia || aj.plantillaDiarioV === PLANTILLA_DIARIO_V)) return aj.plantillaDiarioId;
   const dir = await G.carpeta([RAIZ, 'Plantillas'], aj.carpetas);
-  const r = await fetch('plantillas/diario-critico.docx', { cache: 'no-cache' });
+  const r = await fetch(enApp('plantillas/diario-critico.docx'), { cache: 'no-cache' });
   if (!r.ok) throw new Error('No se pudo cargar la plantilla del diario. Revisa tu conexión.');
   aj.plantillaDiarioId = await G.subirArchivo('Plantilla · Diario crítico', await r.blob(), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', dir, 'application/vnd.google-apps.document');
   aj.plantillaPropia = false; aj.plantillaDiarioV = PLANTILLA_DIARIO_V; S.guardar();
@@ -622,9 +624,9 @@ function vNueva() {
     <div class="seccion">
       ${op('#/sesion/nuevo:espejo', 'ojo', 'verde', 'Espejo', 'Crea tu diario crítico en Google Docs')}
       ${op('#/sesion/nuevo:coterapia', 'dos', 'verde', 'Coterapia', 'Crea tu diario crítico en Google Docs')}
-      ${op('#/tc/nuevo', 'bocadillo', 'azul', 'Tutoría de caso', 'Una pregunta · 1 minuto')}
-      ${op('#/elegir/tutoria_metodologica', 'birrete', 'morado', 'Tutoría metodológica', 'Su ficha de apuntes ya está creada')}
-      ${op('#/elegir/seminario', 'pantalla', 'ambar', 'Seminario', 'Su ficha de apuntes ya está creada')}
+      ${op('#/tc/nuevo', 'bocadillo', 'azul', 'Tutoría de caso', 'Tus apuntes y la idea clave')}
+      ${op('#/elegir/tutoria_metodologica', 'birrete', 'morado', 'Tutoría metodológica', 'Ya está en el calendario: marca que asististe')}
+      ${op('#/elegir/seminario', 'pantalla', 'ambar', 'Seminario', 'Ya está en el calendario: marca que asististe')}
       ${op('#/practica/nuevo', 'pdp', 'gris', 'Práctica de mi PDP', 'Role play, lectura, ejercicio en mí')}
     </div></div>`,
   };
@@ -1193,7 +1195,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.11.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.11.2</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1910,8 +1912,8 @@ let pdfjsCarga = null;
 function cargarPdfjs() {
   if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
   pdfjsCarga = pdfjsCarga || new Promise((res, rej) => {
-    const sc = document.createElement('script'); sc.src = 'vendor/pdfjs/pdf.js';
-    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.js'; res(window.pdfjsLib); };
+    const sc = document.createElement('script'); sc.src = enApp('vendor/pdfjs/pdf.js');
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = enApp('vendor/pdfjs/pdf.worker.js'); res(window.pdfjsLib); };
     sc.onerror = () => { pdfjsCarga = null; rej(new Error('No se pudo cargar el visor de PDF.')); };
     document.head.appendChild(sc);
   });
@@ -2187,7 +2189,7 @@ guardarCopia('Al abrir la app', 6 * 3600e3);
 if (COMPANEROS && !LS.get('ll-guia-vista')) setTimeout(() => abrirGuiaUso(0), 300);
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+  navigator.serviceWorker.register(enApp('sw.js'), { updateViaCache: 'none' }).then((reg) => {
     reg.update();
     // Cuando hay una versión nueva, se recarga sola una vez
     let recargado = false;
