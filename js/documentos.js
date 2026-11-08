@@ -22,6 +22,14 @@ export function marcasDiario({ numero, codigo, inicial, fecha, tipo, formato, du
 }
 
 // Lista de sesiones de un caso (en texto normal, como la plantilla del diario)
+// Diario sin plantilla: solo los datos de la sesión y espacio para escribir
+export function diarioBasico(m) {
+  const fila = (k, v) => `<b>${k}:</b> ${esc(v)}`;
+  return `<html><body style="${estilo}"><p><b>Diario crítico</b></p>
+<p>${[fila('Paciente', m.PACIENTE), fila('Fecha', m.FECHA), fila('Tipo', `${m.TIPO} (${m.FORMATO})`), fila('Duración', m.DURACION), fila('Terapeuta', m.TERAPEUTA)].join('<br>')}</p>
+<p></p></body></html>`;
+}
+
 export function listaSesiones(paciente, filas) {
   const td = 'style="border:1px solid #999999;padding:4px 6px"';
   return `<html><body style="${estilo}"><p><b>Paciente:</b> ${esc(paciente)}<br><b>Sesiones:</b> ${filas.length}</p>

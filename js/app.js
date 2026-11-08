@@ -240,6 +240,8 @@ function montarSelectorTerapeuta(raiz) {
 const PLANTILLA_DIARIO_V = 2;
 async function plantillaDiarioId() {
   const aj = S.datos().ajustes;
+  // Versión para compañeros: sin plantilla predeterminada (la de la app es personal). Solo la que suba cada uno.
+  if (COMPANEROS) return aj.plantillaPropia && aj.plantillaDiarioId ? aj.plantillaDiarioId : null;
   // La predeterminada se rehace si cambia de versión (las plantillas propias no se tocan)
   if (aj.plantillaDiarioId && (aj.plantillaPropia || aj.plantillaDiarioV === PLANTILLA_DIARIO_V)) return aj.plantillaDiarioId;
   const dir = await G.carpeta([RAIZ, 'Plantillas'], aj.carpetas);
@@ -270,13 +272,24 @@ async function crearDiario(id) {
   const codigo = a.caso.trim();
   const dir = await G.carpeta([RAIZ, 'Casos', etiquetaCaso(codigo)], S.datos().ajustes.carpetas);
   const nombre = nombreDiario(a);
-  let doc;
-  try { doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
-  catch { S.datos().ajustes.plantillaDiarioId = null; doc = await G.copiar(await plantillaDiarioId(), nombre, dir); }
-  await G.reemplazarMarcas(doc, D.marcasDiario({
+  const marcas = D.marcasDiario({
     numero: S.numeroDiario(a), codigo, inicial: aliasDe(codigo), fecha: a.fecha, tipo: a.tipo, formato: a.formato,
     duracion: '1 h', terapeuta: S.terapeuta(a.terapeutaId)?.nombre, notas: a.notasCaliente,
-  }));
+  });
+  let doc;
+  let plantilla = await plantillaDiarioId();
+  if (plantilla) {
+    try { doc = await G.copiar(plantilla, nombre, dir); }
+    catch {
+      const aj = S.datos().ajustes; aj.plantillaDiarioId = null;
+      if (COMPANEROS) aj.plantillaPropia = false;
+      plantilla = await plantillaDiarioId();
+      if (plantilla) doc = await G.copiar(plantilla, nombre, dir);
+    }
+  }
+  if (doc) await G.reemplazarMarcas(doc, marcas);
+  // Sin plantilla: un documento sencillo con los datos de la sesión, listo para escribir
+  else doc = await G.docDesdeHtml(nombre, D.diarioBasico(marcas), dir);
   S.actualizar(() => { a.docId = doc; a.docNombre = nombre; });
   return doc;
 }
@@ -1138,9 +1151,9 @@ function vAjustes(params) {
       <section class="tarjeta">${titulo('doc', 'Plantillas', 'Las que usa la app para crear tus documentos')}
         <div class="lista">
         <div class="fila"><span class="item-texto"><span style="font-size:15px">Hoja de horas de Luria</span><span class="item-sub">${aj.plantillaHorasNombre ? esc(aj.plantillaHorasNombre) : 'Sin subir'}</span></span><label class="btn texto" for="in-horas" style="cursor:pointer">${aj.plantillaHorasNombre ? 'Cambiar' : 'Subir .xlsx'}</label><input type="file" id="in-horas" accept=".xlsx" class="oculto"></div>
-        <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : 'Predeterminada · datos de la sesión + 3 apartados'}</span></span>${aj.plantillaPropia ? '<button class="btn texto" data-act="plantilla-defecto">Usar la predeterminada</button>' : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">Subir .docx</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
+        <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : COMPANEROS ? 'Sin plantilla · documento en blanco con los datos de la sesión' : 'Predeterminada · datos de la sesión + 3 apartados'}</span></span>${aj.plantillaPropia ? `<button class="btn texto" data-act="plantilla-defecto">${COMPANEROS ? 'Quitar' : 'Usar la predeterminada'}</button>` : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">${aj.plantillaPropia ? 'Cambiar' : 'Subir .docx'}</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
         </div>
-        <details class="pequeno"><summary class="suave">Usar mi propia plantilla del diario</summary><p class="mini suave" style="line-height:1.5;margin-top:6px">La app rellena estas marcas donde las pongas: {{PACIENTE}} (${COMPANEROS ? 'código del caso' : 'número + inicial'}), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p></details>
+        <details class="pequeno"><summary class="suave">Usar mi propia plantilla del diario</summary><p class="mini suave" style="line-height:1.5;margin-top:6px">${COMPANEROS ? 'Si no subes ninguna, cada diario se crea como un documento en blanco con los datos de la sesión arriba. ' : ''}La app rellena estas marcas donde las pongas: {{PACIENTE}} (${COMPANEROS ? 'código del caso' : 'número + inicial'}), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p></details>
       </section>
     </div>
     <div class="bloque">
@@ -1198,7 +1211,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.14.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1801,7 +1814,7 @@ const acciones = {
     d.querySelector('.botones').insertAdjacentHTML('afterend', '<button type="button" class="btn texto" id="b-del-ter" style="color:var(--error)">Eliminar terapeuta</button>');
     d.querySelector('#b-del-ter').addEventListener('click', () => { S.borrar([t.id]); cerrarModal(); render(); });
   },
-  'plantilla-defecto': () => { S.actualizar((s) => { s.ajustes.plantillaDiarioId = null; s.ajustes.plantillaPropia = false; }); toast('Usarás la plantilla predeterminada.'); render(); },
+  'plantilla-defecto': () => { S.actualizar((s) => { s.ajustes.plantillaDiarioId = null; s.ajustes.plantillaPropia = false; }); toast(COMPANEROS ? 'Los diarios se crearán en un documento en blanco con los datos de la sesión.' : 'Usarás la plantilla predeterminada.'); render(); },
   copia: () => descargar(new Blob([JSON.stringify(S.datos(), null, 2)], { type: 'application/json' }), `luria-lab-copia-${hoyISO()}.json`),
   'borrar-local': () => {
     const pend = cambiosSinGuardar();
@@ -2210,7 +2223,7 @@ const PASOS_GUIA = [
   { ic: 'ajustes', t: 'Empieza por Ajustes', p: ['En <b>Ajustes › Prácticas</b> pon tu nombre (sale en la hoja de horas) y añade a tus terapeutas.', 'Si hiciste actividades antes de usar la app, en <b>Ajustes › Plantillas</b> puedes importar las hojas de horas que ya enviaste.'], ir: ['#/ajustes', 'Ir a Ajustes'] },
   { ic: 'mas', t: 'Registra cada actividad', p: ['Pulsa <b>+ Nueva entrada</b> y elige qué has hecho: espejo, coterapia, tutoría de caso, tutoría metodológica o seminario.', 'Las tutorías metodológicas y los seminarios ya vienen en el calendario: solo tienes que marcar <b>Asistí</b>.'] },
   { ic: 'calendario', t: 'Planifica en la Agenda', p: ['Apunta también las sesiones que tienes por delante.', 'Cuando pase la fecha, la app te preguntará en Inicio si las completas.'], ir: ['#/agenda', 'Ver la agenda'] },
-  { ic: 'doc', t: 'Espejos y coterapias', p: ['Usa solo el código del caso, nunca nombres ni iniciales.', 'Desde el caso, <b>Crear diario crítico</b> genera el documento en tu Drive con la plantilla y los datos de la sesión ya rellenos.', 'Si el terapeuta te da feedback, guárdalo en el propio caso.'] },
+  { ic: 'doc', t: 'Espejos y coterapias', p: ['Usa solo el código del caso, nunca nombres ni iniciales.', COMPANEROS ? 'Desde el caso, <b>Crear diario crítico</b> genera el documento en tu Drive con los datos de la sesión ya rellenos: en tu propia plantilla, si la subes en Ajustes › Plantillas, o en un documento en blanco.' : 'Desde el caso, <b>Crear diario crítico</b> genera el documento en tu Drive con la plantilla y los datos de la sesión ya rellenos.', 'Si el terapeuta te da feedback, guárdalo en el propio caso.'] },
   { ic: 'birrete', t: 'Tutorías y seminarios', p: ['Crea un <b>documento de apuntes</b> para escribir durante la sesión, a tu manera.', 'En tutorías metodológicas y seminarios, cuando tengas tus apuntes en limpio, <b>sube el PDF a la Guía clínica</b>: quedan ordenados por temas, con su icono.'], ir: ['#/guia', 'Ver la Guía clínica'] },
   { ic: 'descargar', t: 'Horas y entregas', p: ['En Inicio ves tus horas al día.', 'En <b>Exportar y entregas</b> tienes la hoja de horas del mes con las casillas ya marcadas y un borrador del diario crítico mensual.', 'La app nunca envía nada: los documentos los mandas tú desde tu correo.'], ir: ['#/exportar', 'Ver Exportar'] },
   { ic: 'hexa', t: 'Y además', p: ['<b>Mi PDP</b>: tus objetivos y su seguimiento.', '<b>Hexaflex</b>: un banco de ejercicios de ACT para practicar por escrito, en audio y en role play.'] },
