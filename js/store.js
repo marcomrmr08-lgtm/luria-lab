@@ -47,7 +47,35 @@ function asegurarPrecargadas(s) {
   }
 }
 
+// Seguridad: los datos pueden venir de Drive o de una copia importada. Se descarta lo que no tenga
+// la forma esperada (identificadores, fechas, horas) para que nunca acabe dentro del HTML o de una URL.
+const ID_OK = /^[\w.:-]{1,128}$/;
+const FECHA_OK = /^\d{4}-\d{2}-\d{2}$/;
+const HORA_OK = /^\d{2}:\d{2}$/;
+function sanearIds(o, prof = 0) {
+  if (!o || typeof o !== 'object' || prof > 8) return;
+  for (const k of Object.keys(o)) {
+    const v = o[k];
+    if ((k === 'id' || /Id$/.test(k)) && v != null && !(typeof v === 'string' && ID_OK.test(v)) && typeof v !== 'number') o[k] = null;
+    else if (typeof v === 'object') sanearIds(v, prof + 1);
+  }
+}
+function sanear(s) {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return {};
+  sanearIds(s);
+  const conId = (l) => (Array.isArray(l) ? l.filter((x) => x && typeof x === 'object' && x.id != null) : l);
+  s.actividades = conId(s.actividades);
+  if (Array.isArray(s.actividades)) s.actividades = s.actividades.filter((a) => typeof a.fecha === 'string' && FECHA_OK.test(a.fecha) && typeof a.tipo === 'string' && /^[a-z_]{1,40}$/.test(a.tipo));
+  for (const a of s.actividades || []) if (a.hora != null && !(typeof a.hora === 'string' && HORA_OK.test(a.hora))) delete a.hora;
+  s.terapeutas = conId(s.terapeutas); s.guia = conId(s.guia); s.biblio = conId(s.biblio);
+  if (Array.isArray(s.horasPrevias)) s.horasPrevias = s.horasPrevias.filter((p) => p && typeof p.mes === 'string' && /^\d{4}-\d{2}$/.test(p.mes) && /^[a-z_]{1,40}$/.test(p.tipo || ''));
+  if (s.hexaflex) s.hexaflex.fichas = conId(s.hexaflex.fichas);
+  for (const e of s.guia || []) if (e.fecha != null && !FECHA_OK.test(String(e.fecha))) e.fecha = null;
+  return s;
+}
+
 function completar(s) {
+  s = sanear(s);
   const d = porDefecto();
   s.ajustes = { ...d.ajustes, ...(s.ajustes || {}), horas: { ...d.ajustes.horas, ...(s.ajustes?.horas || {}) } };
   for (const k of ['terapeutas', 'actividades', 'horasPrevias', 'borrados']) if (!Array.isArray(s[k])) s[k] = [];

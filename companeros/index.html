@@ -2,6 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<!-- Política de seguridad: solo se ejecuta código de la propia app y del inicio de sesión de Google,
+     y la app solo puede hablar con Google. Ver SEGURIDAD.md -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://www.googleapis.com https://docs.googleapis.com https://sheets.googleapis.com https://oauth2.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <!-- Versión para compañeros: usa los mismos archivos que la app principal, una carpeta más arriba.
      Sin <base>: los enlaces internos (#/…) deben quedarse en esta página. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -14,11 +18,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../styles.css">
-<script>window.LL_EDICION = 'companeros';</script>
+<script src="../js/ed-companeros.js"></script>
 </head>
 <body>
 <main id="app" aria-live="polite"></main>

@@ -46,10 +46,13 @@ export async function conectar({ calendario = false } = {}) {
   });
 }
 
+// Quita el permiso de la app en la cuenta de Google (no solo olvida la sesión)
 export function desconectar() {
-  if (token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(token, () => {});
+  const t = token;
   token = null; caduca = 0; conCalendario = false;
   try { localStorage.removeItem('ll-google'); } catch {}
+  if (!t || !window.google?.accounts?.oauth2) return Promise.resolve();
+  return new Promise((res) => { google.accounts.oauth2.revoke(t, () => res()); setTimeout(res, 4000); });
 }
 export const conectadoAntes = () => { try { return localStorage.getItem('ll-google') === '1'; } catch { return false; } };
 

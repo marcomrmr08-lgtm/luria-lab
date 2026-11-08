@@ -176,7 +176,8 @@ function inicialesTer(t) {
 // Alias privado del paciente: SOLO en este dispositivo (no va a Drive, Calendar ni Docs)
 const ALIAS = 'll-alias-casos';
 const leerAlias = () => { try { return JSON.parse(localStorage.getItem(ALIAS)) || {}; } catch { return {}; } };
-const aliasDe = (codigo) => (codigo ? leerAlias()[codigo.trim()] || '' : '');
+// En la versión para compañeros no se usa la inicial del paciente (solo el código, más anónimo)
+const aliasDe = (codigo) => (codigo && !COMPANEROS ? leerAlias()[codigo.trim()] || '' : '');
 function ponerAlias(codigo, valor) {
   const m = leerAlias(); const k = codigo.trim();
   if (valor) m[k] = valor; else delete m[k];
@@ -658,8 +659,8 @@ function vSesion(id) {
       ${seg('formato', [['presencial', 'Presencial'], ['online', 'Online (Teams)']], a.formato || 'presencial')}
       <div class="campo"><label for="caso">Código de caso</label><input type="text" id="caso" name="caso" list="l-casos" required value="${esc(a.caso)}" placeholder="p. ej. 07" autocomplete="off"><datalist id="l-casos">${casos.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
         <span class="ayuda">Solo el número. Las sesiones del mismo código se agrupan.</span></div>
-      <div class="campo"><label for="ini-pac">Inicial del nombre del paciente <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="ini-pac" name="inicialPac" maxlength="3" value="${esc(aliasDe(a.caso))}" placeholder="p. ej. M" autocomplete="off" style="max-width:140px">
-        <span class="ayuda">${icon('candado', 12)} Aparece tras el número en tu diario crítico. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></div>
+      ${COMPANEROS ? '' : `      <div class="campo"><label for="ini-pac">Inicial del nombre del paciente <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="ini-pac" name="inicialPac" maxlength="3" value="${esc(aliasDe(a.caso))}" placeholder="p. ej. M" autocomplete="off" style="max-width:140px">
+        <span class="ayuda">${icon('candado', 12)} Aparece tras el número en tu diario crítico. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></div>`}
       <div class="campo"><label for="num-ses">Nº de sesión en este caso</label><input type="number" id="num-ses" name="numSesion" min="1" max="200" value="${a.caso ? S.numeroSesion(a) : 1}" style="max-width:140px">
         <span class="ayuda">Se calcula solo. Cámbialo si el caso empezó antes de usar la app: las siguientes sesiones contarán desde aquí.</span></div>
       <div class="dos-col">
@@ -684,11 +685,11 @@ function vSesion(id) {
       // Mientras no lo toques, el nº de sesión y la inicial siguen al código de caso que escribes
       const numIn = r.querySelector('#num-ses'); const iniIn = r.querySelector('#ini-pac'); let numTocado = false; let iniTocada = false;
       numIn.addEventListener('input', () => { numTocado = true; });
-      iniIn.addEventListener('input', () => { iniTocada = true; });
+      iniIn?.addEventListener('input', () => { iniTocada = true; });
       r.querySelector('#caso').addEventListener('input', (e) => {
         const prueba = { ...a, caso: e.target.value.trim(), numSesion: undefined };
         if (!numTocado) numIn.value = prueba.caso ? S.numeroSesion(prueba, { sinPropio: true }) : 1;
-        if (!iniTocada) iniIn.value = aliasDe(prueba.caso);
+        if (!iniTocada && iniIn) iniIn.value = aliasDe(prueba.caso);
       });
       let accion = 'guardar';
       f.querySelectorAll('button[name=accion]').forEach((b) => b.addEventListener('click', () => { accion = b.value; }));
@@ -954,15 +955,15 @@ function vCaso(codigo) {
     html: `<div class="pantalla sin-nav">${volver('#/diario', 'Diario')}
     <div class="item-texto"><h1 class="titulo" style="font-size:30px">${esc(etiquetaCaso(codigo))}${aliasDe(codigo) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(aliasDe(codigo))}</span>` : ''}${ultima && inicialesTer(S.terapeuta(ultima.terapeutaId)) ? ` <span style="color:var(--suave);font-weight:700">· ${esc(inicialesTer(S.terapeuta(ultima.terapeutaId)))}</span>` : ''}</h1>
     <span class="suave pequeno">${ultima ? 'Terapeuta: ' + esc(S.terapeuta(ultima.terapeutaId)?.nombre || '') + ' · ' : ''}${hechasC.length} sesi${hechasC.length === 1 ? 'ón' : 'ones'}${hechasC[0] ? ' · desde el ' + esc(fmtCorta(hechasC[0].fecha)) : ''}</span></div>
-    <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Inicial del paciente</label>
+    ${COMPANEROS ? '' : `    <form id="f-alias" class="tarjeta" style="gap:8px"><label for="alias" class="pequeno" style="font-weight:700">Inicial del paciente</label>
       <div class="dos-col" style="grid-template-columns:1fr auto"><input type="text" id="alias" maxlength="12" value="${esc(aliasDe(codigo))}" placeholder="p. ej. M" autocomplete="off"><button class="btn">Guardar</button></div>
-      <span class="mini suave" style="line-height:1.4">${icon('candado', 12)} Aparece tras el número en los diarios críticos que crees. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></form>
+      <span class="mini suave" style="line-height:1.4">${icon('candado', 12)} Aparece tras el número en los diarios críticos que crees. Se guarda solo en este dispositivo: no va a Google Calendar ni a los datos de la app en Drive.</span></form>`}
     <section class="tarjeta" style="gap:10px"><div class="fila-entre"><span style="font-size:16px;font-weight:700">Lista de sesiones</span><span class="pequeno suave">${ss.length}</span></div>
       <div class="lista-ses">${ss.map((x) => { const f = filaSesion(x); return `<div class="fila-ses ${x.estado !== 'hecha' ? 'planificada' : ''}"><b>S${f.n}</b><span>${esc(f.fecha)}</span><span>${esc(f.tipo)} · ${esc(f.formato)}</span><span class="suave">${esc(f.estado)}</span></div>`; }).join('')}</div>
       <div class="botones"><button class="btn" data-act="lista-copiar" data-caso="${esc(codigo)}">Copiar lista</button><button class="btn" data-act="lista-doc" data-caso="${esc(codigo)}">${icon('doc', 16)}Crear en Google Docs</button></div></section>
     <div class="seccion">${tarjetas}</div></div>`,
     mount(r) {
-      r.querySelector('#f-alias').addEventListener('submit', (e) => { e.preventDefault(); ponerAlias(codigo, r.querySelector('#alias').value.trim()); toast('Alias guardado en este dispositivo.'); render(); });
+      r.querySelector('#f-alias')?.addEventListener('submit', (e) => { e.preventDefault(); ponerAlias(codigo, r.querySelector('#alias').value.trim()); toast('Alias guardado en este dispositivo.'); render(); });
     },
   };
 }
@@ -1139,7 +1140,7 @@ function vAjustes(params) {
         <div class="fila"><span class="item-texto"><span style="font-size:15px">Hoja de horas de Luria</span><span class="item-sub">${aj.plantillaHorasNombre ? esc(aj.plantillaHorasNombre) : 'Sin subir'}</span></span><label class="btn texto" for="in-horas" style="cursor:pointer">${aj.plantillaHorasNombre ? 'Cambiar' : 'Subir .xlsx'}</label><input type="file" id="in-horas" accept=".xlsx" class="oculto"></div>
         <div class="fila"><span class="item-texto"><span style="font-size:15px">Diario crítico</span><span class="item-sub">${aj.plantillaPropia ? 'Tu plantilla propia' : 'Predeterminada · datos de la sesión + 3 apartados'}</span></span>${aj.plantillaPropia ? '<button class="btn texto" data-act="plantilla-defecto">Usar la predeterminada</button>' : ''}<label class="btn texto" for="in-diario" style="cursor:pointer">Subir .docx</label><input type="file" id="in-diario" accept=".docx" class="oculto"></div>
         </div>
-        <details class="pequeno"><summary class="suave">Usar mi propia plantilla del diario</summary><p class="mini suave" style="line-height:1.5;margin-top:6px">La app rellena estas marcas donde las pongas: {{PACIENTE}} (número + inicial), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p></details>
+        <details class="pequeno"><summary class="suave">Usar mi propia plantilla del diario</summary><p class="mini suave" style="line-height:1.5;margin-top:6px">La app rellena estas marcas donde las pongas: {{PACIENTE}} (${COMPANEROS ? 'código del caso' : 'número + inicial'}), {{CASO}} (nº de diario), {{FECHA}}, {{TIPO}}, {{FORMATO}}, {{DURACION}}, {{TERAPEUTA}} y {{NOTAS}}.</p></details>
       </section>
     </div>
     <div class="bloque">
@@ -1154,7 +1155,7 @@ function vAjustes(params) {
           <div class="campo" data-solo-sesion><label for="p-caso">Código de caso <span class="suave" style="font-weight:400">(opcional)</span></label><input type="text" id="p-caso" name="caso" list="l-casos-p"><datalist id="l-casos-p">${[...S.casos().keys()].map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
           <div class="dos-col" style="align-items:end"><div class="campo"><label for="p-n">Cuántas ese día</label><input type="number" id="p-n" name="cantidad" min="1" max="8" value="1"></div><button class="btn">Añadir</button></div>
         </form></details>
-        ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales antiguos sin día (ya no cuentan en tus horas ni en la hoja; quítalos y usa la importación o el calendario): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo].nombre)} · ${p.sesiones} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
+        ${s.horasPrevias.length ? `<div class="aviso-caja">${icon('reloj', 18)}<span>Totales antiguos sin día (ya no cuentan en tus horas ni en la hoja; quítalos y usa la importación o el calendario): ${s.horasPrevias.map((p, i) => `${esc(nombreMes(p.mes))} · ${esc(TIPOS[p.tipo]?.nombre || p.tipo)} · ${esc(p.sesiones)} <button class="btn texto pequeno" data-act="quitar-previa" data-i="${i}">quitar</button>`).join(' · ')}</span></div>` : ''}
       </section>
     </div>`,
     cuenta: `
@@ -1162,6 +1163,11 @@ function vAjustes(params) {
       <section class="tarjeta">${titulo('candado', 'Cuenta de Google', !G.configurado() ? 'No configurada (modo prueba)' : G.conectado() ? 'Conectada · solo Drive y Docs, sin acceso al correo' : 'Sin conectar')}
         ${G.configurado() ? (G.conectado() ? '<button class="btn" data-act="desconectar">Desconectar</button>' : '<button class="btn primario" data-act="conectar">Conectar con Google</button>') : ''}
         <span class="mini suave" style="line-height:1.45">Tus registros se sincronizan con un archivo oculto de tu Drive que solo ve esta app. Los documentos que crees van a la carpeta «Luria Lab».</span>
+      </section>
+      <section class="tarjeta">${titulo('candado', 'Cerrar sesión y borrar este dispositivo', 'Para un móvil prestado, perdido o que vas a cambiar')}
+        <span class="mini suave" style="line-height:1.45">Quita el permiso de la app en tu Google y borra todo lo guardado en este dispositivo. Lo que está en tu Drive no se toca.</span>
+        <button class="btn peligro" data-act="borrar-local">Cerrar sesión y borrar</button>
+        <span class="mini suave" style="line-height:1.45">También puedes quitar el permiso cuando quieras desde <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener noreferrer">tu cuenta de Google</a>.</span>
       </section>
     </div>
     <div class="bloque">
@@ -1182,21 +1188,17 @@ function vAjustes(params) {
       <section class="tarjeta">${titulo('descargar', 'Copia de seguridad', 'Un archivo con todos tus registros')}
         <div class="botones"><button class="btn" data-act="copia">Descargar</button><label class="btn" for="in-copia" style="cursor:pointer">Restaurar</label></div><input type="file" id="in-copia" accept=".json,application/json" class="oculto">
       </section>
-      <section class="tarjeta">${titulo('ojo', 'Iniciales de pacientes', `${Object.keys(leerAlias()).length} en este dispositivo · no se sincronizan`)}
+      ${COMPANEROS ? '' : `      <section class="tarjeta">${titulo('ojo', 'Iniciales de pacientes', `${Object.keys(leerAlias()).length} en este dispositivo · no se sincronizan`)}
         <span class="mini suave" style="line-height:1.45">Si cambias de móvil o borras la app, descárgalas antes y vuelve a cargarlas.</span>
         <div class="botones"><button class="btn" data-act="alias-descargar">Descargar</button><label class="btn" for="in-alias" style="cursor:pointer">Cargar</label></div><input type="file" id="in-alias" accept=".json,application/json" class="oculto">
-      </section>
-      <section class="tarjeta">${titulo('papelera', 'Cerrar sesión en este dispositivo', 'Borra los datos guardados aquí')}
-        <span class="mini suave" style="line-height:1.45">Lo sincronizado en tu Drive no se toca y vuelve al conectar.</span>
-        <button class="btn peligro" data-act="borrar-local">Cerrar sesión</button>
-      </section>
+      </section>`}
     </div>`,
   };
   return {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.13.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.14.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1703,7 +1705,7 @@ const acciones = {
       toast('Datos restaurados.'); render();
     });
   },
-  desconectar: () => { G.desconectar(); toast('Desconectado de Google.'); render(); },
+  desconectar: async () => { await G.desconectar(); toast('Desconectado: la app ya no tiene permiso en tu Google.'); render(); },
   notas: (b) => abrirNotas(b, b.dataset.id),
   'no-asistir': (b) => modalNoAsistir(b.dataset.id),
   'crear-diario': (b) => conCarga(b, async () => { const doc = await crearDiario(b.dataset.id); toast('Diario crítico creado.', { enlace: G.enlaceDoc(doc), ms: 12000 }); render(); }),
@@ -1801,12 +1803,21 @@ const acciones = {
   },
   'plantilla-defecto': () => { S.actualizar((s) => { s.ajustes.plantillaDiarioId = null; s.ajustes.plantillaPropia = false; }); toast('Usarás la plantilla predeterminada.'); render(); },
   copia: () => descargar(new Blob([JSON.stringify(S.datos(), null, 2)], { type: 'application/json' }), `luria-lab-copia-${hoyISO()}.json`),
-  'borrar-local': () => confirmar('¿Cerrar sesión en este dispositivo?', 'Se borrarán los datos guardados en este dispositivo, incluidos los alias privados de pacientes (descárgalos antes si los quieres conservar). Si estás conectado con Google, tus registros siguen en tu Drive y volverán al conectar. Si no, descarga antes una copia de seguridad.', 'Cerrar sesión', async () => {
-    G.desconectar();
-    try { localStorage.clear(); } catch {}
-    try { indexedDB.deleteDatabase('luria-lab'); } catch {}
-    location.hash = '#/inicio'; location.reload();
-  }),
+  'borrar-local': () => {
+    const pend = cambiosSinGuardar();
+    const aviso = pend && !G.conectado()
+      ? `Tienes ${pend} ${pend === 1 ? 'cambio' : 'cambios'} sin sincronizar que se perderán: conecta con Google antes, o descarga una copia de seguridad.`
+      : 'Tus registros y documentos siguen en tu Drive y vuelven al conectar.';
+    confirmar('¿Cerrar sesión y borrar este dispositivo?', `Se quita el permiso de la app en tu cuenta de Google y se borra todo lo guardado en este dispositivo: registros, copias y PDFs guardados${COMPANEROS ? '' : ', e iniciales de pacientes (descárgalas antes si las quieres conservar)'}. ${aviso}`, 'Cerrar sesión y borrar', async () => {
+      if (pend && G.conectado()) { try { await G.escribirDatos(S.datos()); } catch (e) { console.warn(e); } }
+      await G.desconectar();
+      try { localStorage.clear(); } catch {}
+      try { sessionStorage.clear(); } catch {}
+      await new Promise((res) => { try { const r = indexedDB.deleteDatabase('luria-lab'); r.onsuccess = r.onerror = r.onblocked = () => res(); } catch { res(); } setTimeout(res, 3000); });
+      try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+      location.hash = '#/inicio'; location.reload();
+    });
+  },
 };
 // ---------- Apuntes (tutorías metodológicas, seminarios y tutorías de caso) ----------
 const conGuia = (a) => a.tipo === 'tutoria_metodologica' || a.tipo === 'seminario';
@@ -2002,7 +2013,7 @@ async function montarVisorPdf(visor, e) {
     try {
       msg('<span class="spinner" aria-hidden="true"></span> Cargando el PDF…');
       const [lib, buf] = await Promise.all([cargarPdfjs(), bytesPdf(e)]);
-      doc = await lib.getDocument({ data: new Uint8Array(buf.slice ? buf.slice(0) : buf) }).promise;
+      doc = await lib.getDocument({ data: new Uint8Array(buf.slice ? buf.slice(0) : buf), isEvalSupported: false, enableXfa: false }).promise;
       await pintarPaginas(doc, visor, visor.clientWidth || 340);
     } catch (err) {
       console.warn(err);
@@ -2199,7 +2210,7 @@ const PASOS_GUIA = [
   { ic: 'ajustes', t: 'Empieza por Ajustes', p: ['En <b>Ajustes › Prácticas</b> pon tu nombre (sale en la hoja de horas) y añade a tus terapeutas.', 'Si hiciste actividades antes de usar la app, en <b>Ajustes › Plantillas</b> puedes importar las hojas de horas que ya enviaste.'], ir: ['#/ajustes', 'Ir a Ajustes'] },
   { ic: 'mas', t: 'Registra cada actividad', p: ['Pulsa <b>+ Nueva entrada</b> y elige qué has hecho: espejo, coterapia, tutoría de caso, tutoría metodológica o seminario.', 'Las tutorías metodológicas y los seminarios ya vienen en el calendario: solo tienes que marcar <b>Asistí</b>.'] },
   { ic: 'calendario', t: 'Planifica en la Agenda', p: ['Apunta también las sesiones que tienes por delante.', 'Cuando pase la fecha, la app te preguntará en Inicio si las completas.'], ir: ['#/agenda', 'Ver la agenda'] },
-  { ic: 'doc', t: 'Espejos y coterapias', p: ['Usa solo el código del caso, nunca nombres. Si quieres, añade la inicial del paciente: se guarda solo en tu móvil.', 'Desde el caso, <b>Crear diario crítico</b> genera el documento en tu Drive con la plantilla y los datos de la sesión ya rellenos.', 'Si el terapeuta te da feedback, guárdalo en el propio caso.'] },
+  { ic: 'doc', t: 'Espejos y coterapias', p: ['Usa solo el código del caso, nunca nombres ni iniciales.', 'Desde el caso, <b>Crear diario crítico</b> genera el documento en tu Drive con la plantilla y los datos de la sesión ya rellenos.', 'Si el terapeuta te da feedback, guárdalo en el propio caso.'] },
   { ic: 'birrete', t: 'Tutorías y seminarios', p: ['Crea un <b>documento de apuntes</b> para escribir durante la sesión, a tu manera.', 'En tutorías metodológicas y seminarios, cuando tengas tus apuntes en limpio, <b>sube el PDF a la Guía clínica</b>: quedan ordenados por temas, con su icono.'], ir: ['#/guia', 'Ver la Guía clínica'] },
   { ic: 'descargar', t: 'Horas y entregas', p: ['En Inicio ves tus horas al día.', 'En <b>Exportar y entregas</b> tienes la hoja de horas del mes con las casillas ya marcadas y un borrador del diario crítico mensual.', 'La app nunca envía nada: los documentos los mandas tú desde tu correo.'], ir: ['#/exportar', 'Ver Exportar'] },
   { ic: 'hexa', t: 'Y además', p: ['<b>Mi PDP</b>: tus objetivos y su seguimiento.', '<b>Hexaflex</b>: un banco de ejercicios de ACT para practicar por escrito, en audio y en role play.'] },
