@@ -1,7 +1,7 @@
 // Ilustraciones animadas de los seis procesos del Hexaflex: minimalistas, con luz suave y ritmo lento.
 // El color sale de --c (color del pilar). Se quedan quietas si el sistema pide menos movimiento.
 const luz = (id, opac = 0.55) => `<radialGradient id="${id}"><stop offset="0" class="luz-c" stop-opacity="${opac}"/><stop offset="1" class="luz-c" stop-opacity="0"/></radialGradient>`;
-const marco = (k, defs, interior, texto) => `<figure class="ilus ilus-${k}" aria-hidden="true"><svg viewBox="0 0 320 160" role="presentation"><defs>${defs}</defs>${interior}</svg><figcaption>${texto}</figcaption></figure>`;
+const marco = (k, defs, interior, texto) => `<figure class="ilus ilus-${k}" aria-hidden="true"><svg viewBox="0 0 320 160" role="presentation"><defs>${defs}</defs>${interior}</svg></figure>`;
 // Pétalo de loto centrado en (cx, base), girado «a» grados
 const petalo = (a, h = 46, w = 16) => `<path d="M160 118 C ${160 - w} ${118 - h * 0.45}, ${160 - w * 0.4} ${118 - h * 0.9}, 160 ${118 - h} C ${160 + w * 0.4} ${118 - h * 0.9}, ${160 + w} ${118 - h * 0.45}, 160 118 Z" transform="rotate(${a} 160 118)" class="linea"/>`;
 
