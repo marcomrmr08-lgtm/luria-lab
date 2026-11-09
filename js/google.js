@@ -202,8 +202,17 @@ export async function asegurarCalendario(id) {
   }
   const c = await json(`${CAL}/calendars`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: 'Luria Lab', description: 'Prácticas · creado por la app Luria Lab', timeZone: 'Europe/Madrid' }) });
   calVerificado = c.id;
+  await colorCalendario(c.id);
   return c.id;
 }
+// Azul oscuro de la app para el calendario «Luria Lab»
+export async function colorCalendario(id) {
+  try {
+    await json(`${CAL}/users/me/calendarList/${encodeURIComponent(id)}?colorRgbFormat=true&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ backgroundColor: '#232b5c', foregroundColor: '#ffffff' }) });
+  } catch (e) { console.warn('Color del calendario', e); }
+}
+// Google limita las escrituras muy seguidas: se reintenta con pausas crecientes
+export const esLimite = (e) => /\((403|429)\)/.test(e?.message || '') && /rate|limit|quota|usage/i.test(e?.message || '');
 // Identificador fijo por actividad (hexadecimal, válido para Google Calendar): si el evento ya existe,
 // Google rechaza crearlo otra vez (409) y se actualiza el que hay. Así nunca se duplica.
 export const idEvento = (actividadId) => 'll' + [...new TextEncoder().encode(String(actividadId))].map((b) => b.toString(16).padStart(2, '0')).join('');

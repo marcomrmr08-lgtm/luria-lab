@@ -138,7 +138,7 @@ function eventoDe(a) {
   } else { ev.start = { date: a.fecha }; ev.end = { date: sumarDias(a.fecha, 1) }; }
   return ev;
 }
-let sincCal = false; let otraCal = false;
+let sincCal = false; let otraCal = false; let calFallos = 0;
 let datosBajados = false; // no se toca el calendario hasta haber juntado los datos con los de Drive
 async function sincronizarCalendario() {
   const aj = S.datos().ajustes;
@@ -148,13 +148,32 @@ async function sincronizarCalendario() {
   try {
     const cal = await G.asegurarCalendario(aj.calendarioId);
     if (cal !== aj.calendarioId) { aj.calendarioId = cal; aj.eventos = {}; cambio = true; }
+    if (!aj.calendarioColor) { await G.colorCalendario(cal); aj.calendarioColor = true; cambio = true; }
     const eventos = aj.eventos || (aj.eventos = {});
-    const vivas = new Map(S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha')).map((a) => [a.id, a]));
+    const hoy = hoyISO();
+    // Primero lo que está por venir (lo más útil en el calendario), después lo pasado
+    const lista = S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha'))
+      .sort((x, y) => ((x.fecha < hoy) - (y.fecha < hoy)) || (x.fecha < hoy ? y.fecha.localeCompare(x.fecha) : x.fecha.localeCompare(y.fecha)));
+    const vivas = new Map(lista.map((a) => [a.id, a]));
+    const conReintentos = async (fn) => {
+      for (let i = 0; ; i++) {
+        try { return await fn(); }
+        catch (e) { if (!G.esLimite(e) || i >= 4) throw e; await new Promise((r) => setTimeout(r, 1500 * 2 ** i)); }
+      }
+    };
+    let fallos = 0;
     for (const [id, a] of vivas) {
       const ev = eventoDe(a); const h = JSON.stringify(ev); const e = eventos[id];
-      if (!e) { eventos[id] = { id: await G.crearEvento(cal, ev, G.idEvento(id)), h }; cambio = true; }
-      else if (e.h !== h) { try { await G.cambiarEvento(cal, e.id, ev); } catch { e.id = await G.crearEvento(cal, ev, G.idEvento(id)); } e.h = h; cambio = true; }
+      if (e && e.h === h) continue;
+      try {
+        if (!e) eventos[id] = { id: await conReintentos(() => G.crearEvento(cal, ev, G.idEvento(id))), h };
+        else { try { await conReintentos(() => G.cambiarEvento(cal, e.id, ev)); } catch { e.id = await conReintentos(() => G.crearEvento(cal, ev, G.idEvento(id))); } e.h = h; }
+        cambio = true;
+      } catch (err) { fallos++; console.warn('Calendario: no se pudo enviar', a.tipo, a.fecha, err); }
+      await new Promise((r) => setTimeout(r, 120));
     }
+    calFallos = fallos;
+    if (fallos) setTimeout(() => sincronizarCalendario().catch((e) => console.warn('Calendario', e)), 60000);
     for (const id of Object.keys(eventos)) if (!vivas.has(id)) { await G.borrarEvento(cal, eventos[id].id); delete eventos[id]; cambio = true; }
   } finally {
     sincCal = false;
@@ -1192,6 +1211,7 @@ function vAjustes(params) {
     <div class="bloque">
       <section class="tarjeta">${titulo('calendario', 'Google Calendar', aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'Desactivado')}
         <span class="mini suave" style="line-height:1.45">Envía tu agenda a un calendario «Luria Lab» que crea la app. Solo puede tocar ese calendario, y solo en un sentido: de la app a Calendar.</span>
+        ${aj.calendarioActivo && aj.calendarioId ? (() => { const total = S.datos().actividades.filter((x) => !x.pasada && (x.estado === 'programada' || x.estado === 'hecha')).length; const en = Object.keys(aj.eventos || {}).length; return `<span class="mini ${en < total ? '' : 'suave'}" style="line-height:1.45">${Math.min(en, total)} de ${total} actividades en Google Calendar${en < total ? ' · se completan solas en unos minutos' : ''}</span>${G.tieneCalendario() ? '<button class="btn texto" data-act="cal-sinc">Enviar ahora al calendario</button>' : ''}`; })() : ''}
         ${aj.calendarioActivo ? '<button class="btn" data-act="cal-off">Desactivar</button>' : '<button class="btn" data-act="cal-on">Activar</button>'}
         ${aj.calendarioId ? '<button class="btn texto peligro" data-act="cal-borrar">Quitar el calendario «Luria Lab» de Google Calendar</button>' : ''}
       </section>
@@ -1217,7 +1237,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.2</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1781,6 +1801,10 @@ const acciones = {
   'pdp-c-quitar': (b) => b.closest('.pdp-edit-c').remove(),
   'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { pdpEdit.delete(`o:${b.dataset.o}`); S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
   'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
+  'cal-sinc': (b) => conCarga(b, async () => {
+    await sincronizarCalendario();
+    toast(calFallos ? `Faltan ${calFallos} por enviar: Google ha pedido una pausa. Se reintenta solo en un minuto.` : 'Calendario al día.', { ms: 7000 }); render();
+  }),
   'cal-on': (b) => conCarga(b, async () => {
     await G.conectar({ calendario: true });
     if (!G.tieneCalendario()) throw new Error('Google no dio el permiso de calendario. Vuelve a intentarlo y marca la casilla del calendario.');
