@@ -194,12 +194,16 @@ export async function recrearDatos(obj) {
 // ---------- Google Calendar (solo el calendario «Luria Lab» que crea la app) ----------
 const CAL = 'https://www.googleapis.com/calendar/v3';
 let calVerificado = null;
-export async function asegurarCalendario(id) {
+// Comprueba el calendario de la app. Solo crea uno nuevo si la persona lo ha pedido (crear: true):
+// así una sincronización automática nunca puede multiplicar calendarios.
+export class SinCalendario extends Error {}
+export async function asegurarCalendario(id, { crear = false } = {}) {
   if (id && calVerificado === id) return id;
   if (id) {
     try { await json(`${CAL}/calendars/${encodeURIComponent(id)}?fields=id`); calVerificado = id; return id; }
-    catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; } // solo se crea otro si el anterior ya no existe
+    catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; }
   }
+  if (!crear) throw new SinCalendario('El calendario «Luria Lab» no existe');
   const c = await json(`${CAL}/calendars`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: 'Luria Lab', description: 'Prácticas · creado por la app Luria Lab', timeZone: 'Europe/Madrid' }) });
   calVerificado = c.id;
   await colorCalendario(c.id);

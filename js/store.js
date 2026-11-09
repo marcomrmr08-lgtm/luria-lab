@@ -184,9 +184,10 @@ export function fusionar(local, remoto) {
   const ajustes = { ...otro, ...Object.fromEntries(Object.entries(base).filter(([, v]) => v !== '' && v !== null && v !== undefined)) };
   ajustes.carpetas = { ...(otro.carpetas || {}), ...(base.carpetas || {}) };
   // Calendario: el identificador y su lista de eventos van juntos (si no, se recrean eventos duplicados)
-  const conCal = base.calendarioId ? base : otro.calendarioId ? otro : null;
+  const reciente = (x) => (x.calendarioId ? (x.calendarioCreado || 1) : 0);
+  const conCal = reciente(otro) > reciente(base) ? otro : base.calendarioId ? base : otro.calendarioId ? otro : null;
   if (conCal) {
-    ajustes.calendarioId = conCal.calendarioId;
+    ajustes.calendarioId = conCal.calendarioId; ajustes.calendarioCreado = conCal.calendarioCreado; ajustes.calendarioColor = conCal.calendarioColor;
     const otroCal = conCal === base ? otro : base;
     ajustes.eventos = { ...(otroCal.calendarioId === conCal.calendarioId ? otroCal.eventos || {} : {}), ...(conCal.eventos || {}) };
   }

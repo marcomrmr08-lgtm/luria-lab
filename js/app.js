@@ -152,18 +152,22 @@ function eventoDe(a) {
   } else { ev.start = { date: a.fecha }; ev.end = { date: sumarDias(a.fecha, 1) }; }
   return ev;
 }
-let sincCal = false; let otraCal = false; let calFallos = 0;
+let sincCal = false; let otraCal = false; let calFallos = 0; let calPerdido = false;
 let datosBajados = false; // no se toca el calendario hasta haber juntado los datos con los de Drive
-async function sincronizarCalendario() {
-  const aj = S.datos().ajustes;
-  if (!aj.calendarioActivo || !G.tieneCalendario() || !datosBajados) return;
+// Envía la agenda al calendario «Luria Lab». Solo crea el calendario si se pide (crear: true, al pulsar un botón).
+async function sincronizarCalendario({ crear = false } = {}) {
+  const AJ = () => S.datos().ajustes; // siempre los datos actuales (pueden cambiar al juntarse con Drive)
+  if (!AJ().calendarioActivo || !G.tieneCalendario() || !datosBajados) return;
   if (sincCal) { otraCal = true; return; }
-  sincCal = true; let cambio = false;
+  sincCal = true;
   try {
-    const cal = await G.asegurarCalendario(aj.calendarioId);
-    if (cal !== aj.calendarioId) { aj.calendarioId = cal; aj.eventos = {}; cambio = true; }
-    if (!aj.calendarioColor) { await G.colorCalendario(cal); aj.calendarioColor = true; cambio = true; }
-    const eventos = aj.eventos || (aj.eventos = {});
+    let cal;
+    try { cal = await G.asegurarCalendario(AJ().calendarioId, { crear }); }
+    catch (e) { if (e instanceof G.SinCalendario) { calPerdido = true; return; } throw e; }
+    calPerdido = false;
+    if (cal !== AJ().calendarioId) S.actualizar((s) => { s.ajustes.calendarioId = cal; s.ajustes.calendarioCreado = Date.now(); s.ajustes.eventos = {}; s.ajustes.calendarioColor = true; });
+    if (!AJ().calendarioColor) { await G.colorCalendario(cal); S.actualizar((s) => { s.ajustes.calendarioColor = true; }); }
+    const sigue = () => AJ().calendarioId === cal; // si otro dispositivo cambió de calendario, se para
     const hoy = hoyISO();
     // Primero lo que está por venir (lo más útil en el calendario), después lo pasado
     const lista = S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha'))
@@ -175,23 +179,29 @@ async function sincronizarCalendario() {
         catch (e) { if (!G.esLimite(e) || i >= 4) throw e; await new Promise((r) => setTimeout(r, 1500 * 2 ** i)); }
       }
     };
+    const apuntar = (id, valor) => S.actualizar((s) => { const ev = s.ajustes.eventos || (s.ajustes.eventos = {}); if (valor) ev[id] = valor; else delete ev[id]; });
     let fallos = 0;
     for (const [id, a] of vivas) {
-      const ev = eventoDe(a); const h = JSON.stringify(ev); const e = eventos[id];
+      if (!sigue()) return;
+      const ev = eventoDe(a); const h = JSON.stringify(ev); const e = (AJ().eventos || {})[id];
       if (e && e.h === h) continue;
       try {
-        if (!e) eventos[id] = { id: await conReintentos(() => G.crearEvento(cal, ev, G.idEvento(id))), h };
-        else { try { await conReintentos(() => G.cambiarEvento(cal, e.id, ev)); } catch { e.id = await conReintentos(() => G.crearEvento(cal, ev, G.idEvento(id))); } e.h = h; }
-        cambio = true;
+        let eid;
+        if (!e) eid = await conReintentos(() => G.crearEvento(cal, ev, G.idEvento(id)));
+        else { eid = e.id; try { await conReintentos(() => G.cambiarEvento(cal, e.id, ev)); } catch { eid = await conReintentos(() => G.crearEvento(cal, ev, G.idEvento(id))); } }
+        if (sigue()) apuntar(id, { id: eid, h });
       } catch (err) { fallos++; console.warn('Calendario: no se pudo enviar', a.tipo, a.fecha, err); }
       await new Promise((r) => setTimeout(r, 120));
     }
     calFallos = fallos;
     if (fallos) setTimeout(() => sincronizarCalendario().catch((e) => console.warn('Calendario', e)), 60000);
-    for (const id of Object.keys(eventos)) if (!vivas.has(id)) { await G.borrarEvento(cal, eventos[id].id); delete eventos[id]; cambio = true; }
+    for (const id of Object.keys(AJ().eventos || {})) {
+      if (vivas.has(id) || !sigue()) continue;
+      try { await G.borrarEvento(cal, AJ().eventos[id].id); } catch (e) { console.warn(e); }
+      apuntar(id, null);
+    }
   } finally {
     sincCal = false;
-    if (cambio) S.actualizar(() => {});
     if (otraCal) { otraCal = false; sincronizarCalendario().catch((e) => console.warn('Calendario', e)); }
   }
 }
@@ -1225,7 +1235,8 @@ function vAjustes(params) {
     <div class="bloque">
       <section class="tarjeta">${titulo('calendario', 'Google Calendar', aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'Desactivado')}
         <span class="mini suave" style="line-height:1.45">Envía tu agenda a un calendario «Luria Lab» que crea la app. Solo puede tocar ese calendario, y solo en un sentido: de la app a Calendar.</span>
-        ${aj.calendarioActivo && aj.calendarioId ? (() => { const total = S.datos().actividades.filter((x) => !x.pasada && (x.estado === 'programada' || x.estado === 'hecha')).length; const en = Object.keys(aj.eventos || {}).length; return `<span class="mini ${en < total ? '' : 'suave'}" style="line-height:1.45">${Math.min(en, total)} de ${total} actividades en Google Calendar${en < total ? ' · se completan solas en unos minutos' : ''}</span>${G.tieneCalendario() ? '<button class="btn texto" data-act="cal-sinc">Enviar ahora al calendario</button>' : ''}`; })() : ''}
+        ${aj.calendarioActivo && calPerdido ? '<span class="mini" style="line-height:1.45">Tu calendario «Luria Lab» ya no existe en Google Calendar (quizá lo borraste). La app no crea otro por su cuenta.</span><button class="btn" data-act="cal-crear">Crear el calendario de nuevo</button>' : ''}
+        ${aj.calendarioActivo && aj.calendarioId && !calPerdido ? (() => { const total = S.datos().actividades.filter((x) => !x.pasada && (x.estado === 'programada' || x.estado === 'hecha')).length; const en = Object.keys(aj.eventos || {}).length; return `<span class="mini ${en < total ? '' : 'suave'}" style="line-height:1.45">${Math.min(en, total)} de ${total} actividades en Google Calendar${en < total ? ' · se completan solas en unos minutos' : ''}</span>${G.tieneCalendario() ? '<button class="btn texto" data-act="cal-sinc">Enviar ahora al calendario</button>' : ''}`; })() : ''}
         ${aj.calendarioActivo ? '<button class="btn" data-act="cal-off">Desactivar</button>' : '<button class="btn" data-act="cal-on">Activar</button>'}
         ${aj.calendarioId ? '<button class="btn texto peligro" data-act="cal-borrar">Quitar el calendario «Luria Lab» de Google Calendar</button>' : ''}
       </section>
@@ -1251,7 +1262,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.3</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.16.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1815,6 +1826,12 @@ const acciones = {
   'pdp-c-quitar': (b) => b.closest('.pdp-edit-c').remove(),
   'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { pdpEdit.delete(`o:${b.dataset.o}`); S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
   'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
+  'cal-crear': (b) => conCarga(b, async () => {
+    if (!G.tieneCalendario()) await G.conectar({ calendario: true });
+    if (!datosBajados) await juntarConDrive();
+    await sincronizarCalendario({ crear: true });
+    toast('Calendario «Luria Lab» creado de nuevo.', { ms: 6000 }); render();
+  }),
   'cal-sinc': (b) => conCarga(b, async () => {
     await sincronizarCalendario();
     toast(calFallos ? `Faltan ${calFallos} por enviar: Google ha pedido una pausa. Se reintenta solo en un minuto.` : 'Calendario al día.', { ms: 7000 }); render();
@@ -1824,7 +1841,7 @@ const acciones = {
     if (!G.tieneCalendario()) throw new Error('Google no dio el permiso de calendario. Vuelve a intentarlo y marca la casilla del calendario.');
     if (!datosBajados) await juntarConDrive();
     S.actualizar((s) => { s.ajustes.calendarioActivo = true; });
-    await sincronizarCalendario();
+    await sincronizarCalendario({ crear: true });
     toast('Listo: tu agenda ya está en el calendario «Luria Lab» de Google Calendar.', { ms: 9000 }); render();
   }),
   'cal-off': () => { S.actualizar((s) => { s.ajustes.calendarioActivo = false; }); toast('Ya no se enviarán cambios a Google Calendar. El calendario «Luria Lab» sigue ahí.'); render(); },
