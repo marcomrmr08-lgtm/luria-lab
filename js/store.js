@@ -183,6 +183,13 @@ export function fusionar(local, remoto) {
   const otro = base === L.ajustes ? R.ajustes : L.ajustes;
   const ajustes = { ...otro, ...Object.fromEntries(Object.entries(base).filter(([, v]) => v !== '' && v !== null && v !== undefined)) };
   ajustes.carpetas = { ...(otro.carpetas || {}), ...(base.carpetas || {}) };
+  // Calendario: el identificador y su lista de eventos van juntos (si no, se recrean eventos duplicados)
+  const conCal = base.calendarioId ? base : otro.calendarioId ? otro : null;
+  if (conCal) {
+    ajustes.calendarioId = conCal.calendarioId;
+    const otroCal = conCal === base ? otro : base;
+    ajustes.eventos = { ...(otroCal.calendarioId === conCal.calendarioId ? otroCal.eventos || {} : {}), ...(conCal.eventos || {}) };
+  }
   const informes = { ...R.informes };
   for (const [m, v] of Object.entries(L.informes)) informes[m] = { ...(informes[m] || {}), ...v };
   // Hexaflex: fichas de las dos copias; teoría y PDP de la copia que tenga contenido (o la más reciente)

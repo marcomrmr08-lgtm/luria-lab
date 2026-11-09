@@ -95,6 +95,10 @@ async function guardarCopia(motivo, siPasaron = 0) {
 }
 async function conectarYSincronizar() {
   await G.conectar({ calendario: Boolean(S.datos().ajustes.calendarioActivo) });
+  await juntarConDrive();
+}
+// Junta los datos de este dispositivo con los de Drive (sin sustituir nada) y deja todo sincronizado
+async function juntarConDrive() {
   await guardarCopia('Antes de juntar con tu Drive', 3600e3);
   const remoto = await G.leerDatos();
   // Nunca se sustituye una copia por otra: se juntan las dos, para no perder nada
@@ -109,6 +113,7 @@ async function conectarYSincronizar() {
   if (!limpio) { await G.recrearDatos(S.datos()); try { localStorage.setItem('ll-limpieza-correos', '1'); } catch {} }
   else await G.escribirDatos(S.datos());
   marcarPendiente(false); LS.set('ll-ultima', Date.now()); pintarEstado();
+  datosBajados = true;
   sincronizarCalendario().catch((e) => console.warn('Calendario', e));
   subirAudiosPendientes().catch((e) => console.warn('Audios', e));
 }
@@ -134,9 +139,10 @@ function eventoDe(a) {
   return ev;
 }
 let sincCal = false; let otraCal = false;
+let datosBajados = false; // no se toca el calendario hasta haber juntado los datos con los de Drive
 async function sincronizarCalendario() {
   const aj = S.datos().ajustes;
-  if (!aj.calendarioActivo || !G.tieneCalendario()) return;
+  if (!aj.calendarioActivo || !G.tieneCalendario() || !datosBajados) return;
   if (sincCal) { otraCal = true; return; }
   sincCal = true; let cambio = false;
   try {
@@ -146,13 +152,13 @@ async function sincronizarCalendario() {
     const vivas = new Map(S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha')).map((a) => [a.id, a]));
     for (const [id, a] of vivas) {
       const ev = eventoDe(a); const h = JSON.stringify(ev); const e = eventos[id];
-      if (!e) { eventos[id] = { id: await G.crearEvento(cal, ev), h }; cambio = true; }
-      else if (e.h !== h) { try { await G.cambiarEvento(cal, e.id, ev); } catch { e.id = await G.crearEvento(cal, ev); } e.h = h; cambio = true; }
+      if (!e) { eventos[id] = { id: await G.crearEvento(cal, ev, G.idEvento(id)), h }; cambio = true; }
+      else if (e.h !== h) { try { await G.cambiarEvento(cal, e.id, ev); } catch { e.id = await G.crearEvento(cal, ev, G.idEvento(id)); } e.h = h; cambio = true; }
     }
     for (const id of Object.keys(eventos)) if (!vivas.has(id)) { await G.borrarEvento(cal, eventos[id].id); delete eventos[id]; cambio = true; }
   } finally {
     sincCal = false;
-    if (cambio) { try { localStorage.setItem('luria-lab-v1', JSON.stringify(S.datos())); } catch {} }
+    if (cambio) S.actualizar(() => {});
     if (otraCal) { otraCal = false; sincronizarCalendario().catch((e) => console.warn('Calendario', e)); }
   }
 }
@@ -1211,7 +1217,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1778,6 +1784,7 @@ const acciones = {
   'cal-on': (b) => conCarga(b, async () => {
     await G.conectar({ calendario: true });
     if (!G.tieneCalendario()) throw new Error('Google no dio el permiso de calendario. Vuelve a intentarlo y marca la casilla del calendario.');
+    if (!datosBajados) await juntarConDrive();
     S.actualizar((s) => { s.ajustes.calendarioActivo = true; });
     await sincronizarCalendario();
     toast('Listo: tu agenda ya está en el calendario «Luria Lab» de Google Calendar.', { ms: 9000 }); render();

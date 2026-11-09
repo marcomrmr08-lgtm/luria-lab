@@ -204,8 +204,17 @@ export async function asegurarCalendario(id) {
   calVerificado = c.id;
   return c.id;
 }
-export async function crearEvento(cal, ev) {
-  return (await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) })).id;
+// Identificador fijo por actividad (hexadecimal, válido para Google Calendar): si el evento ya existe,
+// Google rechaza crearlo otra vez (409) y se actualiza el que hay. Así nunca se duplica.
+export const idEvento = (actividadId) => 'll' + [...new TextEncoder().encode(String(actividadId))].map((b) => b.toString(16).padStart(2, '0')).join('');
+export async function crearEvento(cal, ev, idFijo) {
+  const cuerpo = idFijo ? { ...ev, id: idFijo } : ev;
+  try {
+    return (await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })).id;
+  } catch (e) {
+    if (!idFijo || !/\(409\)/.test(e.message)) throw e;
+    return cambiarEvento(cal, idFijo, { ...ev, status: 'confirmed' });
+  }
 }
 export async function cambiarEvento(cal, id, ev) {
   return (await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}?fields=id`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) })).id;
