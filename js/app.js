@@ -29,11 +29,24 @@ const LS = {
   set: (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, String(v)); } catch {} },
 };
 // Cuántos cambios hay guardados solo en este dispositivo (aún no en Drive)
-const cambiosSinGuardar = () => Number(LS.get('ll-pendientes')) || (LS.get('ll-pendiente') === '1' ? 1 : 0);
+// Huella de los datos (sin la hora de guardado): solo cuenta como cambio lo que de verdad cambia algo
+function huella(obj) {
+  const t = JSON.stringify({ ...obj, updatedAt: 0 }); let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36) + ':' + t.length;
+}
+const sinCambiosReales = () => LS.get('ll-huella-sinc') === huella(S.datos());
+const cambiosSinGuardar = () => {
+  const n = Number(LS.get('ll-pendientes')) || (LS.get('ll-pendiente') === '1' ? 1 : 0);
+  return n && sinCambiosReales() ? 0 : n;
+};
 const hayPendiente = () => cambiosSinGuardar() > 0;
 function marcarPendiente(v) {
-  if (v) LS.set('ll-pendientes', cambiosSinGuardar() + 1);
-  else { LS.set('ll-pendientes', null); LS.set('ll-pendiente', null); }
+  if (v) {
+    const h = huella(S.datos());
+    if (h === LS.get('ll-huella-sinc')) { LS.set('ll-pendientes', null); }
+    else if (h !== LS.get('ll-huella-local')) { LS.set('ll-pendientes', (Number(LS.get('ll-pendientes')) || 0) + 1); LS.set('ll-huella-local', h); }
+  } else { LS.set('ll-pendientes', null); LS.set('ll-pendiente', null); LS.set('ll-huella-sinc', huella(S.datos())); LS.set('ll-huella-local', null); }
   pintarEstado();
 }
 S.siempreAlGuardar(() => {
@@ -46,6 +59,7 @@ async function subir() {
   temporizador = null;
   if (subiendo) { otraVez = true; return; }
   if (!G.conectado()) { marcarPendiente(true); return; }
+  if (sinCambiosReales()) { marcarPendiente(false); return; }
   subiendo = true; pintarEstado();
   try { await G.escribirDatos(S.datos()); marcarPendiente(false); LS.set('ll-ultima', Date.now()); }
   catch (e) { marcarPendiente(true); console.warn('No se pudo sincronizar', e); }
@@ -1237,7 +1251,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.2</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.15.3</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
