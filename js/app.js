@@ -1262,7 +1262,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.16.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.16.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -2281,7 +2281,8 @@ function render() {
 // ---------- Guía de uso (versión para compañeros) ----------
 const PASOS_GUIA = [
   { ic: 'inicio', t: 'Te damos la bienvenida a Luria Lab', p: ['Tu cuaderno de prácticas: registra lo que haces, lleva la cuenta de tus horas y crea tus documentos en un momento.', 'Te enseño lo básico en un minuto.'] },
-  { ic: 'candado', t: 'Tus datos, en tu Google', p: ['Al conectar tu cuenta de Google, tus registros se guardan en tu propio Drive. La app solo ve los archivos que ella misma crea: nunca tu correo ni el resto de tu Drive.', 'Arriba verás si está todo al día: <b>verde</b>, sincronizado; <b>azul o ámbar</b>, toca para sincronizar.', 'Google te avisará de que la app no está verificada: es normal mientras está en pruebas.'] },
+  { ic: 'candado', t: 'Tus datos, en tu Google', p: ['Al conectar tu cuenta de Google, tus registros se guardan en tu propio Drive. La app solo ve los archivos que ella misma crea: nunca tu correo ni el resto de tu Drive.', 'Arriba verás si está todo al día: <b>verde</b>, sincronizado; <b>azul o ámbar</b>, toca para sincronizar.'] },
+  { ic: 'externo', t: 'Al conectar con Google', p: ['Verás dos pantallas de Google. Son normales:', '1. <b>«Google no ha verificado esta aplicación»</b>: la app está en pruebas y solo pueden entrar las personas invitadas. Pulsa <b>Continuar</b>.', '2. <b>«Selecciona a qué puede acceder»</b>: marca <b>Seleccionar todo</b> y pulsa <b>Continuar</b>. Sin todas las casillas, la app no puede guardar tus datos.', 'Google puede volver a pedírtelo de vez en cuando, o si pulsas <b>Desconectar</b>. Basta con repetir estos pasos.'] },
   { ic: 'ajustes', t: 'Empieza por Ajustes', p: ['En <b>Ajustes › Prácticas</b> pon tu nombre (sale en la hoja de horas) y añade a tus terapeutas.', 'Si hiciste actividades antes de usar la app, en <b>Ajustes › Plantillas</b> puedes importar las hojas de horas que ya enviaste.'], ir: ['#/ajustes', 'Ir a Ajustes'] },
   { ic: 'mas', t: 'Registra cada actividad', p: ['Pulsa <b>+ Nueva entrada</b> y elige qué has hecho: espejo, coterapia, tutoría de caso, tutoría metodológica o seminario.', 'Las tutorías metodológicas y los seminarios ya vienen en el calendario: solo tienes que marcar <b>Asistí</b>.'] },
   { ic: 'calendario', t: 'Planifica en la Agenda', p: ['Apunta también las sesiones que tienes por delante.', 'Cuando pase la fecha, la app te preguntará en Inicio si las completas.'], ir: ['#/agenda', 'Ver la agenda'] },
