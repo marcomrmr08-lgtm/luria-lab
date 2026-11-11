@@ -153,6 +153,31 @@ function eventoDe(a) {
   return ev;
 }
 let sincCal = false; let otraCal = false; let calFallos = 0; let calPerdido = false;
+// Lee los eventos que ya hay en el calendario y los asocia a sus actividades: así solo se envían las nuevas.
+// Los eventos de Luria Lab que sobran (repetidos) se quitan; los que hayas añadido tú a mano no se tocan.
+async function reconocerEventos(cal) {
+  const deApp = (e) => /^ll[0-9a-f]+$/.test(e.id) || /Luria Lab/.test(e.description || '');
+  const inicio = (st) => (st?.dateTime || st?.date || '').slice(0, 16);
+  const palabra = (t) => (t || '').trim().split(/[\s·.]+/)[0].toLowerCase();
+  const desdeId = (id) => { try { return /^ll[0-9a-f]+$/.test(id) ? new TextDecoder().decode(new Uint8Array(id.slice(2).match(/../g).map((h) => parseInt(h, 16)))) : null; } catch { return null; } };
+  const eventos = await G.listarEventos(cal);
+  const acts = S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha'));
+  const mapa = { ...(S.datos().ajustes.eventos || {}) };
+  const usados = new Set(Object.values(mapa).map((x) => x.id));
+  // 1. Por identificador (eventos creados por la app desde que tienen identificador fijo)
+  for (const e of eventos) { const id = desdeId(e.id); if (id && !mapa[id] && acts.some((a) => a.id === id)) { mapa[id] = { id: e.id, h: '' }; usados.add(e.id); } }
+  // 2. Por fecha y hora (y tipo, si coincide): eventos antiguos con otro identificador
+  for (const a of acts) {
+    if (mapa[a.id]) continue;
+    const ev = eventoDe(a); const k = inicio(ev.start);
+    const libres = eventos.filter((e) => deApp(e) && !usados.has(e.id) && inicio(e.start) === k);
+    const e = libres.find((x) => palabra(x.summary) === palabra(ev.summary)) || libres[0];
+    if (e) { mapa[a.id] = { id: e.id, h: '' }; usados.add(e.id); }
+  }
+  // 3. Repetidos de Luria Lab que no corresponden a nada: fuera
+  for (const e of eventos) if (deApp(e) && !usados.has(e.id)) { try { await G.borrarEvento(cal, e.id); } catch (err) { console.warn(err); } }
+  S.actualizar((s) => { s.ajustes.eventos = mapa; });
+}
 let datosBajados = false; // no se toca el calendario hasta haber juntado los datos con los de Drive
 // Envía la agenda al calendario «Luria Lab». Solo crea el calendario si se pide (crear: true, al pulsar un botón).
 async function sincronizarCalendario({ crear = false } = {}) {
@@ -169,6 +194,8 @@ async function sincronizarCalendario({ crear = false } = {}) {
     if (!AJ().calendarioColor) { await G.colorCalendario(cal); S.actualizar((s) => { s.ajustes.calendarioColor = true; }); }
     const sigue = () => AJ().calendarioId === cal; // si otro dispositivo cambió de calendario, se para
     const hoy = hoyISO();
+    // Una vez por calendario: reconocer los eventos que ya tiene (para no duplicarlos) y quitar repetidos
+    if (AJ().calendarioRevisado !== cal) { await reconocerEventos(cal); if (!sigue()) return; S.actualizar((s) => { s.ajustes.calendarioRevisado = cal; }); }
     // Primero lo que está por venir (lo más útil en el calendario), después lo pasado
     const lista = S.datos().actividades.filter((a) => !a.pasada && (a.estado === 'programada' || a.estado === 'hecha'))
       .sort((x, y) => ((x.fecha < hoy) - (y.fecha < hoy)) || (x.fecha < hoy ? y.fecha.localeCompare(x.fecha) : x.fecha.localeCompare(y.fecha)));
@@ -1235,7 +1262,10 @@ function vAjustes(params) {
     <div class="bloque">
       <section class="tarjeta">${titulo('calendario', 'Google Calendar', aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'Desactivado')}
         <span class="mini suave" style="line-height:1.45">Envía tu agenda a un calendario «Luria Lab» que crea la app. Solo puede tocar ese calendario, y solo en un sentido: de la app a Calendar.</span>
-        ${aj.calendarioActivo && calPerdido ? '<span class="mini" style="line-height:1.45">Tu calendario «Luria Lab» ya no existe en Google Calendar (quizá lo borraste). La app no crea otro por su cuenta.</span><button class="btn" data-act="cal-crear">Crear el calendario de nuevo</button>' : ''}
+        ${aj.calendarioActivo && calPerdido ? `<span class="mini" style="line-height:1.45">La app no encuentra su calendario «Luria Lab» (quizá lo borraste). No crea otro por su cuenta.</span>
+          <div class="campo"><label for="cal-id">¿Ya tienes un calendario «Luria Lab»? Pega su ID</label><input id="cal-id" placeholder="…@group.calendar.google.com" autocomplete="off" autocapitalize="off" spellcheck="false"><span class="ayuda">En calendar.google.com: ⋮ junto a «Luria Lab» › Configuración y uso compartido › Integrar el calendario › <b>ID del calendario</b>. Solo se añadirán las actividades que falten.</span></div>
+          <button class="btn primario" data-act="cal-usar">Usar este calendario</button>
+          <button class="btn texto" data-act="cal-crear">O crear uno nuevo</button>` : ''}
         ${aj.calendarioActivo && aj.calendarioId && !calPerdido ? (() => { const total = S.datos().actividades.filter((x) => !x.pasada && (x.estado === 'programada' || x.estado === 'hecha')).length; const en = Object.keys(aj.eventos || {}).length; return `<span class="mini ${en < total ? '' : 'suave'}" style="line-height:1.45">${Math.min(en, total)} de ${total} actividades en Google Calendar${en < total ? ' · se completan solas en unos minutos' : ''}</span>${G.tieneCalendario() ? '<button class="btn texto" data-act="cal-sinc">Enviar ahora al calendario</button>' : ''}`; })() : ''}
         ${aj.calendarioActivo ? '<button class="btn" data-act="cal-off">Desactivar</button>' : '<button class="btn" data-act="cal-on">Activar</button>'}
         ${aj.calendarioId ? '<button class="btn texto peligro" data-act="cal-borrar">Quitar el calendario «Luria Lab» de Google Calendar</button>' : ''}
@@ -1262,7 +1292,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.16.1</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.17.0</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1826,6 +1856,17 @@ const acciones = {
   'pdp-c-quitar': (b) => b.closest('.pdp-edit-c').remove(),
   'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { pdpEdit.delete(`o:${b.dataset.o}`); S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
   'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
+  'cal-usar': (b) => conCarga(b, async () => {
+    const campo = document.querySelector('#cal-id'); const id = (campo?.value || '').trim();
+    if (!/^[\w.+-]+@group\.calendar\.google\.com$/.test(id)) throw new Error('Pega el «ID del calendario»: termina en @group.calendar.google.com.');
+    if (!G.tieneCalendario()) await G.conectar({ calendario: true });
+    if (!datosBajados) await juntarConDrive();
+    if (!(await G.comprobarCalendario(id))) throw new Error('No se puede usar ese calendario: tiene que ser un «Luria Lab» creado por la app y seguir existiendo.');
+    S.actualizar((s) => { s.ajustes.calendarioId = id; s.ajustes.calendarioCreado = Date.now(); s.ajustes.eventos = {}; s.ajustes.calendarioRevisado = null; s.ajustes.calendarioColor = false; });
+    calPerdido = false;
+    await sincronizarCalendario();
+    toast('Listo: se usa tu calendario «Luria Lab» y solo se añaden las actividades que faltaban.', { ms: 8000 }); render();
+  }),
   'cal-crear': (b) => conCarga(b, async () => {
     if (!G.tieneCalendario()) await G.conectar({ calendario: true });
     if (!datosBajados) await juntarConDrive();

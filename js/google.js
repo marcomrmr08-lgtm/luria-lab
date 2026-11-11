@@ -232,6 +232,20 @@ export async function crearEvento(cal, ev, idFijo) {
 export async function cambiarEvento(cal, id, ev) {
   return (await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}?fields=id`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) })).id;
 }
+// Todos los eventos de un calendario de la app (para reconocer los que ya existen)
+export async function listarEventos(cal) {
+  const todos = []; let pag = '';
+  do {
+    const r = await json(`${CAL}/calendars/${encodeURIComponent(cal)}/events?maxResults=2500&fields=items(id,summary,description,start),nextPageToken${pag ? '&pageToken=' + encodeURIComponent(pag) : ''}`);
+    todos.push(...(r.items || [])); pag = r.nextPageToken || '';
+  } while (pag);
+  return todos;
+}
+// Comprueba que un calendario existe y que la app puede usarlo (debe haberlo creado Luria Lab)
+export async function comprobarCalendario(id) {
+  try { await json(`${CAL}/calendars/${encodeURIComponent(id)}?fields=id`); calVerificado = id; return true; }
+  catch (e) { if (/\((403|404|410)\)/.test(e.message)) return false; throw e; }
+}
 export async function borrarEvento(cal, id) {
   try { await api(`${CAL}/calendars/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch (e) { if (!/\((404|410)\)/.test(e.message)) throw e; }
 }
