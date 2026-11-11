@@ -1263,7 +1263,7 @@ function vAjustes(params) {
       <section class="tarjeta">${titulo('calendario', 'Google Calendar', aj.calendarioActivo ? (G.tieneCalendario() ? 'Activado · en tu calendario «Luria Lab»' : 'Activado · conecta con Google para actualizarlo') : 'Desactivado')}
         <span class="mini suave" style="line-height:1.45">Envía tu agenda a un calendario «Luria Lab» que crea la app. Solo puede tocar ese calendario, y solo en un sentido: de la app a Calendar.</span>
         ${aj.calendarioActivo && calPerdido ? `<span class="mini" style="line-height:1.45">La app no encuentra su calendario «Luria Lab» (quizá lo borraste). No crea otro por su cuenta.</span>
-          <div class="campo"><label for="cal-id">¿Ya tienes un calendario «Luria Lab»? Pega su ID</label><input id="cal-id" placeholder="…@group.calendar.google.com" autocomplete="off" autocapitalize="off" spellcheck="false"><span class="ayuda">En calendar.google.com: ⋮ junto a «Luria Lab» › Configuración y uso compartido › Integrar el calendario › <b>ID del calendario</b>. Solo se añadirán las actividades que falten.</span></div>
+          <div class="campo"><label for="cal-id">¿Ya tienes un calendario «Luria Lab»? Pega su ID</label><input id="cal-id" placeholder="ID o enlace del calendario" autocomplete="off" autocapitalize="off" spellcheck="false"><span class="ayuda">En calendar.google.com: ⋮ junto a «Luria Lab» › Configuración y uso compartido › Integrar el calendario › <b>ID del calendario</b>. Solo se añadirán las actividades que falten.</span></div>
           <button class="btn primario" data-act="cal-usar">Usar este calendario</button>
           <button class="btn texto" data-act="cal-crear">O crear uno nuevo</button>` : ''}
         ${aj.calendarioActivo && aj.calendarioId && !calPerdido ? (() => { const total = S.datos().actividades.filter((x) => !x.pasada && (x.estado === 'programada' || x.estado === 'hecha')).length; const en = Object.keys(aj.eventos || {}).length; return `<span class="mini ${en < total ? '' : 'suave'}" style="line-height:1.45">${Math.min(en, total)} de ${total} actividades en Google Calendar${en < total ? ' · se completan solas en unos minutos' : ''}</span>${G.tieneCalendario() ? '<button class="btn texto" data-act="cal-sinc">Enviar ahora al calendario</button>' : ''}`; })() : ''}
@@ -1292,7 +1292,7 @@ function vAjustes(params) {
     html: `<div class="pantalla sin-nav ancha">${volver('#/inicio', 'Ajustes')}
     <nav class="pestanas" aria-label="Secciones de ajustes">${PESTANAS_AJUSTES.map(([k, t, ic]) => `<a href="#/ajustes?tab=${k}" class="pestana ${k === tab ? 'activa' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 16)}<span>${t}</span></a>`).join('')}</nav>
     <div class="ajustes-cols">${paneles[tab]}</div>
-    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.17.0</p>
+    <p class="mini suave" style="text-align:center">Luria Lab · versión 3.17.1</p>
     </div>`,
     mount(r) {
       pintarCopias(r);
@@ -1857,8 +1857,11 @@ const acciones = {
   'pdp-quitar-obj': (b) => confirmar('¿Quitar este objetivo?', 'Se borran también sus conductas.', 'Quitar', () => { pdpEdit.delete(`o:${b.dataset.o}`); S.actualizar((s) => { s.pdp.objetivos = s.pdp.objetivos.filter((o) => o.id !== b.dataset.o); }); render(); }),
   'alias-descargar': () => descargar(new Blob([JSON.stringify(leerAlias(), null, 2)], { type: 'application/json' }), `luria-lab-alias-${hoyISO()}.json`),
   'cal-usar': (b) => conCarga(b, async () => {
-    const campo = document.querySelector('#cal-id'); const id = (campo?.value || '').trim();
-    if (!/^[\w.+-]+@group\.calendar\.google\.com$/.test(id)) throw new Error('Pega el «ID del calendario»: termina en @group.calendar.google.com.');
+    // Vale el ID tal cual o cualquier enlace del calendario (URL pública, código para insertar, iCal)
+    let texto = (document.querySelector('#cal-id')?.value || '').trim();
+    try { texto = decodeURIComponent(texto); } catch {}
+    const id = (texto.replace(/\s+/g, '').match(/[\w.+-]+@group\.calendar\.google\.com/) || [])[0];
+    if (!id) throw new Error('Pega el «ID del calendario»: termina en @group.calendar.google.com.');
     if (!G.tieneCalendario()) await G.conectar({ calendario: true });
     if (!datosBajados) await juntarConDrive();
     if (!(await G.comprobarCalendario(id))) throw new Error('No se puede usar ese calendario: tiene que ser un «Luria Lab» creado por la app y seguir existiendo.');
